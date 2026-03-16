@@ -64,7 +64,7 @@ async function processVoucherUpload(chatId, userId, mode, fileId, fileName) {
     await downloadTelegramFile(getBotToken(), fileId, fileName, tempFolder);
 
     // Require orchestrator from voucher-upload-activation-esb (sibling project)
-    const orchestratorPath = path.resolve(__dirname, '../../../voucher-upload-activation-esb/src/core/orchestrator');
+    const orchestratorPath = path.resolve(__dirname, '../../../esb-voucher-upload-activation/src/core/orchestrator');
     const { voucherUploadOrchestrate } = require(orchestratorPath);
     const results = await voucherUploadOrchestrate({ credentials, folderPath: tempFolder }, mode);
 
