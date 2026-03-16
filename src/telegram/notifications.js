@@ -20,6 +20,13 @@ async function sendStartNotification(chatId) {
 }
 
 /**
+ * Escape special legacy Markdown characters in dynamic text
+ */
+function escapeMd(text) {
+  return String(text).replace(/[_*`[]/g, '\\$&');
+}
+
+/**
  * Notification with upload results detil
  */
 async function sendUploadResultNotification(chatId, mode, results) {
@@ -37,8 +44,9 @@ async function sendUploadResultNotification(chatId, mode, results) {
 
     results.forEach((r, i) => {
       const icon = r.status.includes('Success') ? '✓' : '✗';
-      message += `\n${i + 1}. ${icon} \`${r.file}\``;
-      if (r.message) message += `\n   └ ${r.message}`;
+      const safeFile = r.file.replace(/_/g, '\\_');
+      message += `\n${i + 1}. ${icon} \`${safeFile}\``;
+      if (r.message) message += `\n   └ ${escapeMd(r.message)}`;
     });
 
     if (failed.length > 0) {
@@ -67,7 +75,7 @@ async function sendFatalErrorNotification(chatId, mode, errorMessage) {
     hint = 'Koneksi ke ESB ERP bermasalah. Coba lagi beberapa saat.';
   }
 
-  const message = `❌ *${modeLabel} Gagal*\n\n📅 ${new Date().toLocaleString('id-ID')}\n\n*Penyebab:*\n\`${errorMessage}\`\n\n💡 ${hint}\n\nGunakan command /${mode.toLowerCase()} untuk mencoba lagi.`;
+  const message = `❌ *${modeLabel} Gagal*\n\n📅 ${new Date().toLocaleString('id-ID')}\n\n*Penyebab:*\n\`${escapeMd(errorMessage)}\`\n\n💡 ${hint}\n\nGunakan command /${mode.toLowerCase()} untuk mencoba lagi.`;
 
   return sendMessage(message, chatId);
 }
