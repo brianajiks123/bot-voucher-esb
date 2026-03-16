@@ -59,7 +59,16 @@ function httpPost(path, payload) {
 }
 
 /**
+ * Determine if a Telegram API error is worth retrying
+ */
+function isRetryableError(description = '') {
+  const permanent = ['bot was blocked', 'chat not found', 'user is deactivated', 'bot token', 'Unauthorized'];
+  return !permanent.some((msg) => description.toLowerCase().includes(msg.toLowerCase()));
+}
+
+/**
  * Send text message to a specific chat
+ * Uses exponential backoff: 2s, 4s, 8s
  */
 async function sendMessage(text, chatId = CHAT_ID, replyMarkup = null, retries = 3) {
   if (!isConfigured()) {
@@ -73,8 +82,20 @@ async function sendMessage(text, chatId = CHAT_ID, replyMarkup = null, retries =
   for (let attempt = 1; attempt <= retries; attempt++) {
     const res = await httpPost(`/bot${BOT_TOKEN}/sendMessage`, payload);
     if (res.ok) { logger.info('Pesan Telegram terkirim'); return true; }
-    logger.warn(`Attempt ${attempt} gagal: ${res.description}`);
-    if (attempt < retries) await delay(attempt * 1000);
+
+    logger.warn(`Attempt ${attempt}/${retries} gagal — error_code: ${res.error_code || '-'}, description: ${res.description || '-'}`);
+
+    // Don't retry permanent errors (invalid token, blocked, etc.)
+    if (!isRetryableError(res.description)) {
+      logger.error(`Error permanen dari Telegram, tidak perlu retry: ${res.description}`);
+      break;
+    }
+
+    if (attempt < retries) {
+      const wait = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s
+      logger.info(`Menunggu ${wait}ms sebelum retry...`);
+      await delay(wait);
+    }
   }
 
   logger.error('Gagal mengirim pesan Telegram setelah semua retry');
