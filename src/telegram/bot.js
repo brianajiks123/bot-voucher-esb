@@ -10,7 +10,6 @@ const { delay } = require('../utils/delay');
 
 /**
  * Tracks per-user state: waiting for file upload
- * @type {Map<number, { mode: 'CREATE'|'ACTIVATE', expiresAt: number }>}
  */
 const userStates = new Map();
 const STATE_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -60,11 +59,11 @@ async function processVoucherUpload(chatId, userId, mode, fileId, fileName) {
   let tempFolder = null;
 
   try {
-    // Download file ke temp folder unik milik user ini
+    // Download file to unique temp folder
     tempFolder = await createTempFolder(userId, mode.toLowerCase());
     await downloadTelegramFile(getBotToken(), fileId, fileName, tempFolder);
 
-    // Require orchestrator dari voucher-upload-activation-esb (sibling project)
+    // Require orchestrator from voucher-upload-activation-esb (sibling project)
     const orchestratorPath = path.resolve(__dirname, '../../../voucher-upload-activation-esb/src/core/orchestrator');
     const { voucherUploadOrchestrate } = require(orchestratorPath);
     const results = await voucherUploadOrchestrate({ credentials, folderPath: tempFolder }, mode);

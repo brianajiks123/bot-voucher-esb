@@ -7,9 +7,6 @@ const TEMP_BASE = path.resolve(__dirname, '../../files/tmp');
 
 /**
  * Create a unique temp folder for a user session
- * @param {number} userId
- * @param {string} mode - 'create' | 'activate'
- * @returns {string} absolute path to temp folder
  */
 async function createTempFolder(userId, mode) {
   const folderName = `${Date.now()}-${userId}-${mode}`;
@@ -21,7 +18,6 @@ async function createTempFolder(userId, mode) {
 
 /**
  * Delete a temp folder and all its contents
- * @param {string} folderPath
  */
 async function deleteTempFolder(folderPath) {
   try {
@@ -34,11 +30,6 @@ async function deleteTempFolder(folderPath) {
 
 /**
  * Download a file from Telegram and save to temp folder
- * @param {string} botToken
- * @param {string} fileId
- * @param {string} fileName
- * @param {string} destFolder
- * @returns {string} absolute path to downloaded file
  */
 async function downloadTelegramFile(botToken, fileId, fileName, destFolder) {
   // Step 1: Get file path from Telegram

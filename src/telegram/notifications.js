@@ -20,10 +20,7 @@ async function sendStartNotification(chatId) {
 }
 
 /**
- * Notification with upload results detail
- * @param {string} chatId
- * @param {'CREATE'|'ACTIVATE'} mode
- * @param {Array<{file: string, status: string, message: string}>} results
+ * Notification with upload results detil
  */
 async function sendUploadResultNotification(chatId, mode, results) {
   try {
@@ -59,9 +56,6 @@ async function sendUploadResultNotification(chatId, mode, results) {
 
 /**
  * Notification when a fatal error occurs (before any file is processed)
- * @param {string} chatId
- * @param {'CREATE'|'ACTIVATE'} mode
- * @param {string} errorMessage
  */
 async function sendFatalErrorNotification(chatId, mode, errorMessage) {
   const modeLabel = mode === 'CREATE' ? 'Create Voucher' : 'Activate Voucher';
