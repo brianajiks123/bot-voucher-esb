@@ -83,7 +83,7 @@ npm start
 pm2 start ecosystem.config.js
 ```
 
-Only this project needs to be running. The `voucher-upload-activation-esb` project is used as a library — its orchestrator is called directly within the same process.
+Only this project needs to be running. The `esb-voucher-upload-activation` project is used as a library — its orchestrator is called directly within the same process.
 
 **Useful PM2 commands:**
 
