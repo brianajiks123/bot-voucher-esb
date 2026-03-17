@@ -9,7 +9,8 @@ const { delay } = require('../utils/delay');
 // ─── State Management ─────────────────────────────────────────────────────────
 
 /**
- * Tracks per-user state: waiting for file upload
+ * Per-user state map: tracks what action the user is waiting to complete (upload or check).
+ * Each entry expires after STATE_TTL_MS milliseconds of inactivity.
  */
 const userStates = new Map();
 const STATE_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -41,22 +42,26 @@ function reply(chatId, text, replyMarkup = null) {
   return sendMessage(text, chatId, replyMarkup);
 }
 
+/**
+ * Persistent reply keyboard shown after /start and /help.
+ */
 function mainKeyboard() {
   return {
     keyboard: [
       [{ text: '/create' }, { text: '/activate' }],
-      [{ text: '/status' }, { text: '/help' }],
+      [{ text: '/check' }, { text: '/status' }],
+      [{ text: '/help' }],
     ],
     resize_keyboard: true,
     persistent: true,
   };
 }
 
-// ─── Voucher Processor ────────────────────────────────────────────────────────
+// ─── Voucher Upload Processor ─────────────────────────────────────────────────
 
 async function processVoucherUpload(chatId, userId, mode, fileId, fileName) {
   if (isProcessing) {
-    await reply(chatId, `⚠️ *Proses sedang berjalan*\n\nSaat ini: ${currentProcess}\nMohon tunggu hingga selesai.`);
+    await reply(chatId, `Proses sedang berjalan\n\nSaat ini: ${currentProcess}\nMohon tunggu hingga selesai.`);
     return;
   }
 
@@ -65,16 +70,16 @@ async function processVoucherUpload(chatId, userId, mode, fileId, fileName) {
   clearState(userId);
 
   const modeLabel = mode === 'CREATE' ? 'Create Voucher' : 'Activate Voucher';
-  await reply(chatId, `🔄 *Memproses ${modeLabel}...*\n\nFile: \`${fileName}\`\nMohon tunggu beberapa menit.`);
+  await reply(chatId, `Memproses ${modeLabel}...\n\nFile: ${fileName}\nMohon tunggu beberapa menit.`);
 
   let tempFolder = null;
 
   try {
-    // Download file to unique temp folder
+    // Download the file into a unique temp folder per user/mode
     tempFolder = await createTempFolder(userId, mode.toLowerCase());
     await downloadTelegramFile(getBotToken(), fileId, fileName, tempFolder);
 
-    // Require orchestrator from voucher-upload-activation-esb (sibling project)
+    // Load the orchestrator from the sibling project at runtime to avoid circular deps
     const orchestratorPath = path.resolve(__dirname, '../../../esb-voucher-upload-activation/src/core/orchestrator');
     const { voucherUploadOrchestrate } = require(orchestratorPath);
     const results = await voucherUploadOrchestrate({ credentials, folderPath: tempFolder }, mode);
@@ -93,58 +98,113 @@ async function processVoucherUpload(chatId, userId, mode, fileId, fileName) {
 // ─── Command Handlers ─────────────────────────────────────────────────────────
 
 async function handleStart(chatId) {
-  await reply(chatId, `🤖 *Voucher Bot - ESB ERP*
-
-Pilih command yang ingin dijalankan:
-
-/create — Upload voucher baru (CREATE)
-/activate — Aktivasi voucher (ACTIVATE)
-/status — Cek status bot
-/help — Bantuan penggunaan`, mainKeyboard());
+  await reply(chatId,
+    `*Voucher Bot - ESB ERP*\n\n` +
+    `Pilih command yang ingin dijalankan:\n\n` +
+    `/create - Upload voucher baru (CREATE)\n` +
+    `/activate - Aktivasi voucher (ACTIVATE)\n` +
+    `/check - Cek informasi voucher\n` +
+    `/status - Cek status bot\n` +
+    `/help - Bantuan penggunaan`,
+    mainKeyboard()
+  );
 }
 
 async function handleCreate(chatId, userId) {
   if (isProcessing) {
-    await reply(chatId, `⚠️ *Proses sedang berjalan*\n\nSaat ini: ${currentProcess}\nMohon tunggu hingga selesai.`);
+    await reply(chatId, `Proses sedang berjalan\n\nSaat ini: ${currentProcess}\nMohon tunggu hingga selesai.`);
     return;
   }
   setState(userId, 'CREATE');
-  await reply(chatId, `📤 *Upload Voucher CREATE*\n\nSilakan kirim file Excel (.xlsx / .xls) yang berisi data voucher yang akan ditambahkan ke ESB ERP.\n\n⏳ Sesi ini akan kedaluwarsa dalam 5 menit.`);
+  await reply(chatId, `Upload Voucher CREATE\n\nSilakan kirim file Excel (.xlsx / .xls) yang berisi data voucher yang akan ditambahkan ke ESB ERP.\n\nSesi ini akan kedaluwarsa dalam 5 menit.`);
 }
 
 async function handleActivate(chatId, userId) {
   if (isProcessing) {
-    await reply(chatId, `⚠️ *Proses sedang berjalan*\n\nSaat ini: ${currentProcess}\nMohon tunggu hingga selesai.`);
+    await reply(chatId, `Proses sedang berjalan\n\nSaat ini: ${currentProcess}\nMohon tunggu hingga selesai.`);
     return;
   }
   setState(userId, 'ACTIVATE');
-  await reply(chatId, `📤 *Upload Voucher ACTIVATE*\n\nSilakan kirim file Excel (.xlsx / .xls) yang berisi data voucher yang akan diaktivasi di ESB ERP.\n\n⏳ Sesi ini akan kedaluwarsa dalam 5 menit.`);
+  await reply(chatId, `Upload Voucher ACTIVATE\n\nSilakan kirim file Excel (.xlsx / .xls) yang berisi data voucher yang akan diaktivasi di ESB ERP.\n\nSesi ini akan kedaluwarsa dalam 5 menit.`);
 }
 
 async function handleStatus(chatId) {
-  const status = isProcessing ? '🔄 Sedang berjalan' : '✅ Siap';
-  await reply(chatId, `📊 *Status Bot*\n\nStatus: ${status}\nProses: ${currentProcess || 'Tidak ada'}\nWaktu: ${new Date().toLocaleString('id-ID')}`);
+  const status = isProcessing ? 'Sedang berjalan' : 'Siap';
+  await reply(chatId, `Status Bot\n\nStatus: ${status}\nProses: ${currentProcess || 'Tidak ada'}\nWaktu: ${new Date().toLocaleString('id-ID')}`);
 }
 
 async function handleHelp(chatId) {
-  await reply(chatId, `❓ *Bantuan Penggunaan*
+  await reply(chatId,
+    `Bantuan Penggunaan\n\n` +
+    `Command:\n` +
+    `/create - Mulai proses upload voucher baru\n` +
+    `/activate - Mulai proses aktivasi voucher\n` +
+    `/check - Cek informasi voucher berdasarkan kode\n` +
+    `/status - Cek status bot saat ini\n` +
+    `/help - Tampilkan bantuan ini\n\n` +
+    `Cara penggunaan:\n` +
+    `1. Kirim /create atau /activate\n` +
+    `2. Bot akan meminta file Excel\n` +
+    `3. Kirim file .xlsx atau .xls\n` +
+    `4. Bot akan memproses dan mengirim hasilnya\n\n` +
+    `Cek Voucher:\n` +
+    `1. Kirim /check\n` +
+    `2. Kirim kode voucher (pisahkan dengan koma jika lebih dari satu)\n` +
+    `3. Bot akan menampilkan detail voucher\n\n` +
+    `Catatan:\n` +
+    `- Hanya 1 proses yang bisa berjalan bersamaan\n` +
+    `- Sesi upload kedaluwarsa dalam 5 menit\n` +
+    `- File akan otomatis dihapus setelah diproses`,
+    mainKeyboard()
+  );
+}
 
-*Command:*
-/create — Mulai proses upload voucher baru
-/activate — Mulai proses aktivasi voucher
-/status — Cek status bot saat ini
-/help — Tampilkan bantuan ini
+async function handleCheck(chatId, userId) {
+  setState(userId, 'CHECK');
+  await reply(chatId, `Cek Voucher\n\nSilakan kirim kode voucher yang ingin dicek.\nJika lebih dari satu, pisahkan dengan koma.\n\nContoh: VOUCHER01, VOUCHER02\n\nSesi ini akan kedaluwarsa dalam 5 menit.`);
+}
 
-*Cara penggunaan:*
-1. Kirim /create atau /activate
-2. Bot akan meminta file Excel
-3. Kirim file .xlsx atau .xls
-4. Bot akan memproses dan mengirim hasilnya
+// ─── Voucher Check Processor ──────────────────────────────────────────────────
 
-*Catatan:*
-• Hanya 1 proses yang bisa berjalan bersamaan
-• Sesi upload kedaluwarsa dalam 5 menit
-• File akan otomatis dihapus setelah diproses`, mainKeyboard());
+async function processVoucherCheck(chatId, userId, text) {
+  clearState(userId);
+  const codes = text.split(',').map((c) => c.trim()).filter(Boolean);
+
+  if (codes.length === 0) {
+    await reply(chatId, 'Kode voucher tidak valid.');
+    return;
+  }
+
+  await reply(chatId, `Mencari ${codes.length} voucher...\nMohon tunggu.`);
+
+  try {
+    // Load esbServices from the sibling project at runtime
+    const esbServicesPath = path.resolve(__dirname, '../../../esb-voucher-upload-activation/src/core/esbServices');
+    const { checkVoucherCodes } = require(esbServicesPath);
+    const results = await checkVoucherCodes(credentials, codes);
+
+    for (const r of results) {
+      if (!r.found) {
+        await reply(chatId, `${r.voucherCode}\nVoucher tidak ditemukan.`);
+        continue;
+      }
+      const d = r.data;
+      await reply(chatId,
+        `${d.voucherCode}\n\n` +
+        `Branch: ${d.branch}\n` +
+        `Start Date: ${d.startDate}\n` +
+        `End Date: ${d.endDate}\n` +
+        `Min. Sales Amount: ${d.minSalesAmount}\n` +
+        `Voucher Amount: ${d.voucherAmount}\n` +
+        `Voucher Sales Price: ${d.voucherSalesPrice}\n` +
+        `Additional Info: ${d.additionalInfo}\n` +
+        `Status: ${d.status}`
+      );
+    }
+  } catch (err) {
+    logger.error(`processVoucherCheck error: ${err.message}`);
+    await reply(chatId, `Gagal mengecek voucher\n\n${err.message}`);
+  }
 }
 
 // ─── Document Handler ─────────────────────────────────────────────────────────
@@ -153,7 +213,7 @@ async function handleDocument(chatId, userId, document) {
   const state = getState(userId);
 
   if (!state) {
-    await reply(chatId, `ℹ️ Kirim /create atau /activate terlebih dahulu sebelum mengirim file.`);
+    await reply(chatId, 'Kirim /create atau /activate terlebih dahulu sebelum mengirim file.');
     return;
   }
 
@@ -161,7 +221,7 @@ async function handleDocument(chatId, userId, document) {
   const isExcel = /\.(xlsx|xls)$/i.test(fileName);
 
   if (!isExcel) {
-    await reply(chatId, `❌ *Format file tidak didukung*\n\nHanya file Excel (.xlsx atau .xls) yang diterima.\nSilakan kirim ulang dengan file yang benar.`);
+    await reply(chatId, 'Format file tidak didukung\n\nHanya file Excel (.xlsx atau .xls) yang diterima.\nSilakan kirim ulang dengan file yang benar.');
     return;
   }
 
@@ -171,18 +231,27 @@ async function handleDocument(chatId, userId, document) {
 // ─── Message Router ───────────────────────────────────────────────────────────
 
 async function handleMessage(message) {
-  const chatId = message.chat.id;
-  const userId = message.from?.id || chatId;
-  const text   = message.text?.toLowerCase().trim() || '';
+  const chatId  = message.chat.id;
+  const userId  = message.from?.id || chatId;
+  const text    = message.text?.toLowerCase().trim() || '';
+  const rawText = message.text?.trim() || '';
 
   if (message.document) {
     await handleDocument(chatId, userId, message.document);
     return;
   }
 
+  // If user is in CHECK state and sends plain text (not a command), treat it as voucher codes
+  const state = getState(userId);
+  if (state?.mode === 'CHECK' && rawText && !rawText.startsWith('/')) {
+    await processVoucherCheck(chatId, userId, rawText);
+    return;
+  }
+
   if (text === '/start' || text === '/menu') await handleStart(chatId);
   else if (text === '/create')               await handleCreate(chatId, userId);
   else if (text === '/activate')             await handleActivate(chatId, userId);
+  else if (text === '/check')                await handleCheck(chatId, userId);
   else if (text === '/status')               await handleStatus(chatId);
   else if (text === '/help')                 await handleHelp(chatId);
 }
@@ -193,17 +262,17 @@ async function startBot() {
   logger.info('Starting Voucher Bot...');
 
   if (!isConfigured()) {
-    logger.warn('Telegram tidak dikonfigurasi. Bot tidak berjalan.');
+    logger.warn('Telegram is not configured. Bot will not start.');
     return;
   }
 
   const isValid = await validateToken();
   if (!isValid) {
-    logger.warn('Bot token tidak valid. Bot tidak berjalan.');
+    logger.warn('Bot token is invalid. Bot will not start.');
     return;
   }
 
-  logger.info('Voucher Bot siap. Menunggu perintah...');
+  logger.info('Voucher Bot is ready. Waiting for commands...');
   let offset = 0;
 
   while (true) {

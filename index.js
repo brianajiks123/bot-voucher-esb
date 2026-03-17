@@ -2,10 +2,13 @@
  * Entry point: Voucher Upload Bot - Telegram
  *
  * Commands:
- *   /create   — Upload voucher baru ke ESB ERP via file Excel
- *   /activate — Aktivasi voucher via file Excel
+ *   /create   — Upload new vouchers to ESB ERP via Excel file
+ *   /activate — Activate vouchers via Excel file
+ *   /check    — Check voucher info by code
+ *   /status   — Check bot status
+ *   /help     — Show usage guide
  *
- * Running with: node index.js
+ * Run with: node index.js
  */
 require('dotenv').config();
 const logger = require('./src/utils/logger');
@@ -22,7 +25,7 @@ async function main() {
   await sendStartNotification(CHAT_ID);
 
   console.log('📱 Starting Telegram Bot...');
-  console.log('   Kirim /create atau /activate untuk mulai\n');
+  console.log('   Send /start to see available commands\n');
 
   await startBot();
 }

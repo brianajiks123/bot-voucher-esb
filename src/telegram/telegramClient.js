@@ -14,6 +14,9 @@ function getBotToken() {
   return BOT_TOKEN;
 }
 
+/**
+ * Strip control characters, collapse whitespace, and truncate to MAX_MESSAGE_LENGTH.
+ */
 function cleanMessage(message) {
   if (!message) return '';
   let cleaned = message
@@ -22,11 +25,14 @@ function cleanMessage(message) {
     .replace(/\n{3,}/g, '\n\n')
     .trim();
   if (cleaned.length > MAX_MESSAGE_LENGTH) {
-    cleaned = cleaned.substring(0, MAX_MESSAGE_LENGTH - 50) + '\n\n... (pesan dipotong)';
+    cleaned = cleaned.substring(0, MAX_MESSAGE_LENGTH - 50) + '\n\n... (message truncated)';
   }
   return cleaned;
 }
 
+/**
+ * Low-level HTTPS POST to the Telegram Bot API.
+ */
 function httpPost(path, payload) {
   return new Promise((resolve) => {
     const data = JSON.stringify(payload);
@@ -59,7 +65,8 @@ function httpPost(path, payload) {
 }
 
 /**
- * Determine if a Telegram API error is worth retrying
+ * Returns true if the Telegram API error is transient and worth retrying.
+ * Permanent errors (blocked, invalid token, deactivated user) are not retried.
  */
 function isRetryableError(description = '') {
   const permanent = ['bot was blocked', 'chat not found', 'user is deactivated', 'bot token', 'Unauthorized'];
@@ -67,12 +74,12 @@ function isRetryableError(description = '') {
 }
 
 /**
- * Send text message to a specific chat
- * Uses exponential backoff: 2s, 4s, 8s
+ * Send a text message to a chat.
+ * Retries up to `retries` times with exponential backoff: 2s, 4s, 8s.
  */
 async function sendMessage(text, chatId = CHAT_ID, replyMarkup = null, retries = 3) {
   if (!isConfigured()) {
-    logger.warn('Telegram tidak dikonfigurasi. Pesan tidak dikirim.');
+    logger.warn('Telegram is not configured. Message not sent.');
     return false;
   }
 
@@ -81,29 +88,28 @@ async function sendMessage(text, chatId = CHAT_ID, replyMarkup = null, retries =
 
   for (let attempt = 1; attempt <= retries; attempt++) {
     const res = await httpPost(`/bot${BOT_TOKEN}/sendMessage`, payload);
-    if (res.ok) { logger.info('Pesan Telegram terkirim'); return true; }
+    if (res.ok) { logger.info('Telegram message sent'); return true; }
 
-    logger.warn(`Attempt ${attempt}/${retries} gagal — error_code: ${res.error_code || '-'}, description: ${res.description || '-'}`);
+    logger.warn(`Attempt ${attempt}/${retries} failed — error_code: ${res.error_code || '-'}, description: ${res.description || '-'}`);
 
-    // Don't retry permanent errors (invalid token, blocked, etc.)
     if (!isRetryableError(res.description)) {
-      logger.error(`Error permanen dari Telegram, tidak perlu retry: ${res.description}`);
+      logger.error(`Permanent Telegram error, skipping retry: ${res.description}`);
       break;
     }
 
     if (attempt < retries) {
       const wait = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s
-      logger.info(`Menunggu ${wait}ms sebelum retry...`);
+      logger.info(`Waiting ${wait}ms before retry...`);
       await delay(wait);
     }
   }
 
-  logger.error('Gagal mengirim pesan Telegram setelah semua retry');
+  logger.error('Failed to send Telegram message after all retries');
   return false;
 }
 
 /**
- * Answer callback query
+ * Answer a callback query (used with inline keyboards).
  */
 async function answerCallbackQuery(callbackQueryId, text = '') {
   const res = await httpPost(`/bot${BOT_TOKEN}/answerCallbackQuery`, { callback_query_id: callbackQueryId, text });
@@ -111,7 +117,8 @@ async function answerCallbackQuery(callbackQueryId, text = '') {
 }
 
 /**
- * Get updates from Telegram (long polling)
+ * Fetch pending updates via long polling.
+ * Returns an empty array on any error so the polling loop can continue safely.
  */
 async function getUpdates(offset = 0) {
   if (!isConfigured()) return [];
@@ -135,7 +142,7 @@ async function getUpdates(offset = 0) {
       res.on('data', (chunk) => { data += chunk; });
       res.on('end', () => {
         try {
-          if (data.trim().startsWith('<html>')) { logger.error('HTML response dari Telegram'); resolve([]); return; }
+          if (data.trim().startsWith('<html>')) { logger.error('HTML response from Telegram'); resolve([]); return; }
           const response = JSON.parse(data);
           if (!response.ok) { logger.error(`Telegram error: ${response.description}`); resolve([]); return; }
           resolve(response.result || []);
@@ -153,7 +160,7 @@ async function getUpdates(offset = 0) {
 }
 
 /**
- * Validate bot token with getMe
+ * Validate the bot token by calling getMe.
  */
 async function validateToken() {
   return new Promise((resolve) => {

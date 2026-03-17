@@ -2,39 +2,40 @@ const { sendMessage } = require('./telegramClient');
 const logger = require('../utils/logger');
 
 /**
- * Notification when bot starts
+ * Sent to the configured chat when the bot process starts.
  */
 async function sendStartNotification(chatId) {
   const message = `🚀 *Voucher Bot Started*
 
-📅 Waktu: ${new Date().toLocaleString('id-ID')}
-🤖 Status: Bot berhasil dijalankan
+📅 Time: ${new Date().toLocaleString('id-ID')}
+🤖 Status: Bot is running
 
-*Command yang tersedia:*
-• /create — Upload voucher baru ke ESB ERP
-• /activate — Aktivasi voucher via file Excel
-• /status — Cek status bot
-• /help — Bantuan penggunaan`;
+*Available commands:*
+• /create — Upload new vouchers to ESB ERP
+• /activate — Activate vouchers via Excel file
+• /check — Check voucher info by code
+• /status — Check bot status
+• /help — Usage guide`;
 
   return sendMessage(message, chatId);
 }
 
 /**
- * Escape special legacy Markdown characters in dynamic text
+ * Escape special legacy Markdown characters in dynamic text.
  */
 function escapeMd(text) {
   return String(text).replace(/[_*`[]/g, '\\$&');
 }
 
 /**
- * Notification with upload results detil
+ * Sent after an upload job finishes, with a per-file result summary.
  */
 async function sendUploadResultNotification(chatId, mode, results) {
   try {
     const success = results.filter((r) => r.status.includes('Success'));
     const failed  = results.filter((r) => !r.status.includes('Success'));
 
-    const modeLabel = mode === 'CREATE' ? 'Create Voucher' : 'Activate Voucher';
+    const modeLabel   = mode === 'CREATE' ? 'Create Voucher' : 'Activate Voucher';
     const overallIcon = failed.length === 0 ? '✅' : success.length === 0 ? '❌' : '⚠️';
 
     let message = `${overallIcon} *${modeLabel} Selesai*\n\n`;
@@ -43,7 +44,7 @@ async function sendUploadResultNotification(chatId, mode, results) {
     message += `\n─────────────────────\n`;
 
     results.forEach((r, i) => {
-      const icon = r.status.includes('Success') ? '✓' : '✗';
+      const icon     = r.status.includes('Success') ? '✓' : '✗';
       const safeFile = r.file.replace(/_/g, '\\_');
       message += `\n${i + 1}. ${icon} \`${safeFile}\``;
       if (r.message) message += `\n   └ ${escapeMd(r.message)}`;
@@ -63,7 +64,8 @@ async function sendUploadResultNotification(chatId, mode, results) {
 }
 
 /**
- * Notification when a fatal error occurs (before any file is processed)
+ * Sent when a fatal error occurs before any file is processed.
+ * Includes a contextual hint based on the error message.
  */
 async function sendFatalErrorNotification(chatId, mode, errorMessage) {
   const modeLabel = mode === 'CREATE' ? 'Create Voucher' : 'Activate Voucher';
