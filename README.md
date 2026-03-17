@@ -129,6 +129,23 @@ tail -f logs/combined.log
 tail -f logs/error.log
 ```
 
+## 9. Telegram Group Setup
+
+The bot supports group chats. The code already uses `message.chat.id` and `message.from.id` separately, so per-user state works correctly in groups.
+
+**Steps:**
+1. Create a Telegram group and add your bot
+2. Make the bot a **group admin** (so it can read all messages)
+3. Disable **privacy mode** via [@BotFather](https://t.me/BotFather) → `/mybots` → Bot Settings → Group Privacy → Turn off
+4. Get the Group Chat ID (it's always a **negative number**, e.g. `-1001234567890`):
+   - Send any message in the group, then open `https://api.telegram.org/bot<BOT_TOKEN>/getUpdates` and find `"chat": { "id": ... }`
+5. Update `.env`:
+   ```env
+   TELEGRAM_CHAT_ID=-1001234567890
+   ```
+
+> In groups with multiple bots, use `/command@botusername` format to avoid ambiguity.
+
 ## Documentation
 
 - [`docs/FLOW.md`](docs/FLOW.md) — process flow

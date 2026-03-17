@@ -1,5 +1,5 @@
 const path = require('path');
-const { sendMessage, answerCallbackQuery, getUpdates, validateToken, isConfigured, getBotToken } = require('./telegramClient');
+const { sendMessage, getUpdates, validateToken, isConfigured, getBotToken } = require('./telegramClient');
 const { sendUploadResultNotification, sendFatalErrorNotification } = require('./notifications');
 const { credentials } = require('../config/credentials');
 const { createTempFolder, deleteTempFolder, downloadTelegramFile } = require('../utils/tempFiles');
@@ -39,6 +39,17 @@ function clearState(userId) {
 
 function reply(chatId, text, replyMarkup = null) {
   return sendMessage(text, chatId, replyMarkup);
+}
+
+function mainKeyboard() {
+  return {
+    keyboard: [
+      [{ text: '/create' }, { text: '/activate' }],
+      [{ text: '/status' }, { text: '/help' }],
+    ],
+    resize_keyboard: true,
+    persistent: true,
+  };
 }
 
 // ─── Voucher Processor ────────────────────────────────────────────────────────
@@ -89,7 +100,7 @@ Pilih command yang ingin dijalankan:
 /create — Upload voucher baru (CREATE)
 /activate — Aktivasi voucher (ACTIVATE)
 /status — Cek status bot
-/help — Bantuan penggunaan`);
+/help — Bantuan penggunaan`, mainKeyboard());
 }
 
 async function handleCreate(chatId, userId) {
@@ -133,7 +144,7 @@ async function handleHelp(chatId) {
 *Catatan:*
 • Hanya 1 proses yang bisa berjalan bersamaan
 • Sesi upload kedaluwarsa dalam 5 menit
-• File akan otomatis dihapus setelah diproses`);
+• File akan otomatis dihapus setelah diproses`, mainKeyboard());
 }
 
 // ─── Document Handler ─────────────────────────────────────────────────────────
