@@ -6,10 +6,10 @@
 /** Normalize user input to a canonical branch key */
 function resolveBranchKey(input) {
   const s = input.trim().toLowerCase();
-  if (s === 'ideologist')                                    return 'ideologist';
-  if (s === 'maari ventura')                                 return 'maari_ventura';
-  if (s === 'maari bsb')                                     return 'maari_bsb';
-  if (s === 'burgas gombel'   || s === 'burjo ngegas gombel')   return 'burgas_gombel';
+  if (s === 'ideologist' || s === 'ideo') return 'ideologist';
+  if (s === 'maari ventura' || s === 'ventura') return 'maari_ventura';
+  if (s === 'maari bsb' || s === 'bsb') return 'maari_bsb';
+  if (s === 'burgas gombel'   || s === 'burjo ngegas gombel') return 'burgas_gombel';
   if (s === 'burgas pleburan' || s === 'burjo ngegas pleburan') return 'burgas_pleburan';
   return null;
 }
