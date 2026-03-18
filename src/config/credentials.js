@@ -56,9 +56,9 @@ function getCredentialsForBranch(branchKey) {
 
 /** List of valid branch input names for user-facing hint */
 const BRANCH_LIST =
-  '- ideologist\n' +
-  '- maari ventura\n' +
-  '- maari bsb\n' +
+  '- ideologist (atau: ideo)\n' +
+  '- maari ventura (atau: ventura)\n' +
+  '- maari bsb (atau: bsb)\n' +
   '- burgas gombel (atau: burjo ngegas gombel)\n' +
   '- burgas pleburan (atau: burjo ngegas pleburan)';
 
