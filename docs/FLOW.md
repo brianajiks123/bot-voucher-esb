@@ -2,12 +2,17 @@
 
 ## Overview
 
-Telegram bot that receives an Excel file from a user and uploads it to ESB ERP via the `voucher-upload-activation-esb` orchestrator. Supports 2 modes:
+Telegram bot that interacts with ESB ERP via the `esb-voucher-upload-activation` orchestrator.
 
-| Mode     | Command     | Description                  | ESB codeMode |
-|----------|-------------|------------------------------|--------------|
-| CREATE   | `/create`   | Add new vouchers to ESB ERP  | 1            |
-| ACTIVATE | `/activate` | Activate existing vouchers   | 3            |
+| Command     | Description                          |
+|-------------|--------------------------------------|
+| `/create`   | Upload new vouchers via Excel file   |
+| `/activate` | Activate existing vouchers via Excel |
+| `/check`    | Check voucher info by code           |
+| `/extend`   | Extend voucher expiry date           |
+| `/delete`   | Delete vouchers                      |
+| `/status`   | Check bot status                     |
+| `/help`     | Show usage guide                     |
 
 ---
 
@@ -16,10 +21,11 @@ Telegram bot that receives an Excel file from a user and uploads it to ESB ERP v
 ```
 node index.js
       │
-      ├─ sendStartNotification()   ← Send start message to Telegram
-      └─ startBot()                ← Start long polling loop
-            │
-            └─ getUpdates() loop  ← Waiting for user messages
+      └─ startBot()
+            ├─ validateToken()
+            ├─ setMyCommands()        ← Register command menu (⊞ button)
+            ├─ sendStartNotification() ← Single startup message to Telegram
+            └─ getUpdates() loop      ← Long polling for user messages
 ```
 
 ---
@@ -30,114 +36,146 @@ node index.js
 User sends /create (or /activate)
       │
       ▼
-Bot sets user state: { mode: 'CREATE', expiresAt: now + 5min }
-Bot replies: "Please send your Excel file..."
+Bot sets state: { mode: 'CREATE', expiresAt: now + 5min }
       │
       ▼
 User sends file .xlsx / .xls
       │
       ▼
-handleDocument()
+handleDocument() → processVoucherUpload()
       │
-      ├─ Check user state → if no state: reply "Send /create first"
-      ├─ Validate file extension → if not .xlsx/.xls: reply format error
+      ├─ Reply: "📥 File diterima..."
+      ├─ createTempFolder()           ← files/tmp/<ts>-<userId>-<mode>/
+      ├─ downloadTelegramFile()       ← Download file to temp folder
+      ├─ Reply: "⬆️ Sedang upload..."
+      ├─ voucherUploadOrchestrate()   ← Login → navigate → upload → return results[]
+      ├─ sendUploadResultNotification()
+      └─ deleteTempFolder()           ← Always cleanup
+```
+
+---
+
+## CHECK Flow
+
+```
+User sends /check
       │
       ▼
-processVoucherUpload()
+Bot sets state: { mode: 'CHECK', expiresAt: now + 5min }
       │
-      ├─ Check isProcessing → if true: reply "Process already running"
-      ├─ Set isProcessing = true
-      ├─ Clear user state
-      ├─ Reply: "Processing... please wait"
+      ▼
+User sends voucher codes (comma-separated)
       │
-      ├─ createTempFolder()          ← Create isolated folder: files/tmp/<ts>-<userId>-<mode>/
-      ├─ downloadTelegramFile()      ← getFile API → download file to temp folder
-      │
-      ├─ voucherUploadOrchestrate()  ← Required from voucher-upload-activation-esb
-      │       │
-      │       ├─ Open Puppeteer browser → navigate to ESB login page
-      │       ├─ checkLoginStatus() → loginAction() if not logged in
-      │       ├─ gotoVoucherMenu()
-      │       │
-      │       └─ For each file in temp folder:
-      │             1. Click "Upload" button
-      │             2. Click mode tab (CREATE codeMode=1 / ACTIVATE codeMode=3)
-      │             3. Set file to upload input
-      │             4. Click submit button
-      │             5. Wait for upload queue to finish
-      │             6. Save result { file, status, message }
-      │       │
-      │       └─ Close browser → return results[]
-      │
-      ├─ sendUploadResultNotification()  ← Send detailed result to user
-      │
-      └─ deleteTempFolder()          ← Always cleanup (success or failed)
-         Set isProcessing = false
+      ▼
+processVoucherCheck() → checkVoucherCodes() → reply per voucher
 ```
 
 ---
 
-## Error Handling Flow
+## EXTEND Flow
 
 ```
-processVoucherUpload()
-      │
-      ├─ [Fatal error — e.g. login failed, network error]
-      │       └─ sendFatalErrorNotification()
-      │             ├─ Login/credential error → hint: "Contact admin"
-      │             ├─ Timeout/network error  → hint: "Try again later"
-      │             └─ Other error            → hint: "Please try again"
-      │
-      └─ [Per-file error — e.g. element not found, upload timeout]
-              └─ Result saved as ✗ Failed, process continues to next file
-                 sendUploadResultNotification() shows detail per file
+Option A — Inline (single message):
+  User sends: /extend KODE1, KODE2 | DD-MM-YYYY
+        │
+        ▼
+  extractInlineData() → processExtend() directly
+
+Option B — Two-step:
+  User sends /extend
+        │
+        ▼
+  Bot sets state: { mode: 'EXTEND', expiresAt: now + 5min }
+  Bot replies: format prompt
+        │
+        ▼
+  User sends: KODE1, KODE2 | DD-MM-YYYY
+        │
+        ▼
+  processExtend()
+
+processExtend():
+  ├─ parseCodesAndDate() — validate format
+  ├─ extendVoucherCodes(credentials, codes, date)
+  │     └─ For each code:
+  │           1. Filter table by voucher code
+  │           2. Check row checkbox
+  │           3. Look for btnUpdate
+  │              ├─ NOT found → { found: true, buttonAvailable: false, status }
+  │              └─ Found → fill new end date → confirm → { success: true }
+  └─ Reply with per-voucher result summary
+        ✅ success | ❌ not_found | ⚠️ button_unavailable (status: X)
 ```
 
 ---
 
-## Result Notification Format
+## DELETE Flow
 
-**All success:**
 ```
-✅ Create Voucher Done
+Option A — Inline (single message):
+  User sends: /delete KODE1, KODE2 | DD-MM-YYYY
+        │
+        ▼
+  extractInlineData() → processDelete() directly
 
-📅 03/16/2026, 14:30:00
-📊 Total: 2 | ✅ Success: 2 | ❌ Failed: 0
+Option B — Two-step:
+  User sends /delete
+        │
+        ▼
+  Bot sets state: { mode: 'DELETE', expiresAt: now + 5min }
+  Bot replies: format prompt
+        │
+        ▼
+  User sends: KODE1, KODE2 | DD-MM-YYYY
+        │
+        ▼
+  processDelete()
 
-─────────────────────
-1. ✓ `voucher_batch1.xlsx`
-2. ✓ `voucher_batch2.xlsx`
+processDelete():
+  ├─ parseCodesAndDate() — validate format
+  ├─ deleteVoucherCodes(credentials, codes, date)
+  │     └─ For each code:
+  │           1. Filter table by voucher code
+  │           2. Check row checkbox
+  │           3. Look for btnDelete
+  │              ├─ NOT found → { found: true, buttonAvailable: false, status }
+  │              └─ Found → modal: Purpose (Select2) + Journal Date → Process
+  └─ Reply with per-voucher result summary
+        ✅ success | ❌ not_found | ⚠️ button_unavailable (status: X)
 ```
 
-**Partial failed:**
+---
+
+## Reply Keyboard Flow
+
 ```
-⚠️ Create Voucher Done
-
-📅 03/16/2026, 14:30:00
-📊 Total: 2 | ✅ Success: 1 | ❌ Failed: 1
-
-─────────────────────
-1. ✓ `voucher_batch1.xlsx`
-2. ✗ `voucher_batch2.xlsx`
-   └ Element "#btnSubmitUpload" not found after 10s
-
-─────────────────────
-⚠️ 1 file(s) failed.
-Please re-upload the failed file(s) using /create
+Every bot response includes mainKeyboard() — persistent reply keyboard:
+  ┌──────────┬───────────┐
+  │ /create  │ /activate │
+  ├──────────┼───────────┤
+  │ /check   │ /extend   │
+  ├──────────┼───────────┤
+  │ /delete  │ /status   │
+  ├──────────┴───────────┤
+  │ /help                │
+  └──────────────────────┘
 ```
 
-**Fatal error:**
+---
+
+## Error Handling
+
 ```
-❌ Create Voucher Failed
+processVoucherUpload()
+  ├─ Fatal error (login failed, network error)
+  │     └─ sendFatalErrorNotification() with contextual hint
+  └─ Per-file error
+        └─ Recorded as ✗ Failed, process continues to next file
 
-📅 03/16/2026, 14:30:00
-
-Cause:
-`Login to ESB failed — invalid credentials`
-
-💡 ESB credentials may be incorrect or session is broken. Contact admin.
-
-Use /create to try again.
+processExtend() / processDelete()
+  ├─ Voucher not found → ❌ per code
+  ├─ Button not available → ⚠️ with current voucher status
+  └─ Unexpected error → ❌ with error message
 ```
 
 ---
@@ -146,12 +184,13 @@ Use /create to try again.
 
 | Condition | Behavior |
 |---|---|
-| User sends `/create` | State set: `{ mode: 'CREATE', expiresAt: now+5min }` |
-| User sends file within 5 minutes | File is processed with the active mode |
-| User sends file after 5 minutes | State expired, bot asks to send command again |
-| User sends file without command | Bot replies: "Send /create or /activate first" |
-| File is not .xlsx/.xls | Bot replies format error, state remains active |
-| A process is already running | All upload commands are rejected until done |
+| User sends `/create` or `/activate` | State set with 5-min TTL, waits for file |
+| User sends `/check` | State set, waits for codes |
+| User sends `/extend` or `/delete` | State set, waits for "CODES \| DATE" |
+| User sends `/extend CODES \| DATE` | Processed inline, no state needed |
+| User sends `/delete CODES \| DATE` | Processed inline, no state needed |
+| State expired | Bot asks to send command again |
+| A process is already running | Upload commands rejected until done |
 
 ---
 
@@ -160,4 +199,4 @@ Use /create to try again.
 Retry is handled by `voucherUploadOrchestrate` at the orchestrator level (not per-file):
 - Max retries: **2x**
 - Delay between retries: `attempt × 5000ms`
-- Per-file errors do not trigger retry — recorded as `✗ Failed` and process continues to the next file
+- Per-file errors do not trigger retry — recorded as `✗ Failed` and process continues

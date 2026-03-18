@@ -1,3 +1,10 @@
+/**
+ * telegramClient.js
+ * HTTP wrapper for the Telegram Bot API.
+ * Handles sendMessage, getUpdates, validateToken, setMyCommands.
+ * Uses native `https` module — no external HTTP library required.
+ */
+
 const https = require('https');
 const logger = require('../utils/logger');
 const { delay } = require('../utils/delay');
@@ -6,6 +13,7 @@ const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const CHAT_ID   = process.env.TELEGRAM_CHAT_ID   || '';
 const MAX_MESSAGE_LENGTH = 4000;
 
+/** Returns true if both BOT_TOKEN and CHAT_ID are set */
 function isConfigured() {
   return BOT_TOKEN.length > 0 && CHAT_ID.length > 0;
 }
@@ -30,9 +38,7 @@ function cleanMessage(message) {
   return cleaned;
 }
 
-/**
- * Low-level HTTPS POST to the Telegram Bot API.
- */
+/** Low-level HTTPS POST to the Telegram Bot API */
 function httpPost(path, payload) {
   return new Promise((resolve) => {
     const data = JSON.stringify(payload);
@@ -76,6 +82,10 @@ function isRetryableError(description = '') {
 /**
  * Send a text message to a chat.
  * Retries up to `retries` times with exponential backoff: 2s, 4s, 8s.
+ * @param {string} text
+ * @param {string|number} [chatId] - Defaults to TELEGRAM_CHAT_ID from env
+ * @param {object} [replyMarkup] - Telegram reply_markup object
+ * @param {number} [retries]
  */
 async function sendMessage(text, chatId = CHAT_ID, replyMarkup = null, retries = 3) {
   if (!isConfigured()) {
@@ -181,4 +191,15 @@ async function validateToken() {
   });
 }
 
-module.exports = { sendMessage, answerCallbackQuery, getUpdates, validateToken, isConfigured, getBotToken };
+/**
+ * Register bot commands shown in the Telegram command menu (⊞ button).
+ * @param {Array<{command: string, description: string}>} commands
+ */
+async function setMyCommands(commands) {
+  const res = await httpPost(`/bot${BOT_TOKEN}/setMyCommands`, { commands });
+  if (res.ok) logger.info('Bot commands registered');
+  else logger.warn(`setMyCommands failed: ${res.description}`);
+  return res.ok;
+}
+
+module.exports = { sendMessage, answerCallbackQuery, getUpdates, validateToken, isConfigured, getBotToken, setMyCommands };

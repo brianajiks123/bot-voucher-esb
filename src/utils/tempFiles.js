@@ -1,3 +1,8 @@
+/**
+ * tempFiles.js
+ * Manages isolated temp folders per user session and downloads files from Telegram.
+ */
+
 const fs = require('fs').promises;
 const path = require('path');
 const https = require('https');
@@ -6,7 +11,8 @@ const logger = require('./logger');
 const TEMP_BASE = path.resolve(__dirname, '../../files/tmp');
 
 /**
- * Create a unique temp folder for a user session
+ * Create a unique temp folder for a user session.
+ * Folder name: <timestamp>-<userId>-<mode>
  */
 async function createTempFolder(userId, mode) {
   const folderName = `${Date.now()}-${userId}-${mode}`;
@@ -17,7 +23,7 @@ async function createTempFolder(userId, mode) {
 }
 
 /**
- * Delete a temp folder and all its contents
+ * Delete a temp folder and all its contents.
  */
 async function deleteTempFolder(folderPath) {
   try {
@@ -29,20 +35,18 @@ async function deleteTempFolder(folderPath) {
 }
 
 /**
- * Download a file from Telegram and save to temp folder
+ * Download a file from Telegram and save it to the given temp folder.
+ * Steps: getFile API → download via HTTPS → save to destFolder/fileName
  */
 async function downloadTelegramFile(botToken, fileId, fileName, destFolder) {
-  // Step 1: Get file path from Telegram
   const filePath = await getTelegramFilePath(botToken, fileId);
-
-  // Step 2: Download file content
   const destPath = path.join(destFolder, fileName);
   await downloadFile(`https://api.telegram.org/file/bot${botToken}/${filePath}`, destPath);
-
   logger.info(`File downloaded: ${destPath}`);
   return destPath;
 }
 
+/** Resolve Telegram file_path from file_id via getFile API */
 function getTelegramFilePath(botToken, fileId) {
   return new Promise((resolve, reject) => {
     const options = {
@@ -70,6 +74,7 @@ function getTelegramFilePath(botToken, fileId) {
   });
 }
 
+/** Download a file from URL and write to destPath */
 function downloadFile(url, destPath) {
   return new Promise((resolve, reject) => {
     const file = require('fs').createWriteStream(destPath);

@@ -1,8 +1,15 @@
+/**
+ * notifications.js
+ * Message templates for bot notifications: startup, upload result, fatal error.
+ */
+
 const { sendMessage } = require('./telegramClient');
+const { mainKeyboard } = require('./keyboard');
 const logger = require('../utils/logger');
 
 /**
  * Sent to the configured chat when the bot process starts.
+ * @param {string|number} [chatId] - Target chat ID; falls back to TELEGRAM_CHAT_ID from env.
  */
 async function sendStartNotification(chatId) {
   const message = `🚀 *Voucher Bot Started*
@@ -14,14 +21,17 @@ async function sendStartNotification(chatId) {
 • /create — Upload new vouchers to ESB ERP
 • /activate — Activate vouchers via Excel file
 • /check — Check voucher info by code
+• /extend — Extend voucher expiry date
+• /delete — Delete voucher
 • /status — Check bot status
 • /help — Usage guide`;
 
-  return sendMessage(message, chatId);
+  return sendMessage(message, chatId || undefined, mainKeyboard());
 }
 
 /**
  * Escape special legacy Markdown characters in dynamic text.
+ * @param {*} text
  */
 function escapeMd(text) {
   return String(text).replace(/[_*`[]/g, '\\$&');
@@ -29,6 +39,9 @@ function escapeMd(text) {
 
 /**
  * Sent after an upload job finishes, with a per-file result summary.
+ * @param {string|number} chatId
+ * @param {'CREATE'|'ACTIVATE'} mode
+ * @param {Array<{file: string, status: string, message?: string}>} results
  */
 async function sendUploadResultNotification(chatId, mode, results) {
   try {
@@ -56,7 +69,7 @@ async function sendUploadResultNotification(chatId, mode, results) {
       message += `Silakan upload ulang file yang gagal dengan command /${mode.toLowerCase()}`;
     }
 
-    return sendMessage(message, chatId);
+    return sendMessage(message, chatId, mainKeyboard());
   } catch (err) {
     logger.error(`sendUploadResultNotification error: ${err.message}`);
     return false;
@@ -66,6 +79,9 @@ async function sendUploadResultNotification(chatId, mode, results) {
 /**
  * Sent when a fatal error occurs before any file is processed.
  * Includes a contextual hint based on the error message.
+ * @param {string|number} chatId
+ * @param {'CREATE'|'ACTIVATE'} mode
+ * @param {string} errorMessage
  */
 async function sendFatalErrorNotification(chatId, mode, errorMessage) {
   const modeLabel = mode === 'CREATE' ? 'Create Voucher' : 'Activate Voucher';
@@ -79,7 +95,7 @@ async function sendFatalErrorNotification(chatId, mode, errorMessage) {
 
   const message = `❌ *${modeLabel} Gagal*\n\n📅 ${new Date().toLocaleString('id-ID')}\n\n*Penyebab:*\n\`${escapeMd(errorMessage)}\`\n\n💡 ${hint}\n\nGunakan command /${mode.toLowerCase()} untuk mencoba lagi.`;
 
-  return sendMessage(message, chatId);
+  return sendMessage(message, chatId, mainKeyboard());
 }
 
 module.exports = { sendStartNotification, sendUploadResultNotification, sendFatalErrorNotification };

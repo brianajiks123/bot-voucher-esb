@@ -1,51 +1,33 @@
 # Bot Voucher ESB
 
-Telegram bot to upload and activate vouchers to ESB ERP via Excel file. Integrates directly with the `voucher-upload-activation-esb` orchestrator — no need to run both projects separately.
+Telegram bot to upload and manage vouchers on ESB ERP. Integrates directly with the `esb-voucher-upload-activation` orchestrator — no need to run both projects separately.
 
 ## Requirements
 
 - Node.js >= 18
-- `voucher-upload-activation-esb` project in the same parent directory
+- `esb-voucher-upload-activation` project in the same parent directory
 - Telegram Bot Token
 - Access to ESB ERP
 
 ## 1. Get Telegram Bot Token
 
 1. Open Telegram and search for [@BotFather](https://t.me/BotFather)
-2. Send `/newbot`
-3. Follow the prompts — enter a name and username for your bot
-4. BotFather will reply with your **Bot Token**, e.g.:
-   ```
-   123456789:AAFxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-   ```
-5. Copy and save the token — use it as `TELEGRAM_BOT_TOKEN` in `.env`
+2. Send `/newbot` and follow the prompts
+3. Copy the **Bot Token** (e.g. `123456789:AAFxxxxxxxx`) → use as `TELEGRAM_BOT_TOKEN` in `.env`
 
 ## 2. Get Telegram Chat ID
 
-1. Start a conversation with your bot — search for its username and send `/start`
-2. Open this URL in your browser (replace `<BOT_TOKEN>` with your actual token):
-   ```
-   https://api.telegram.org/bot<BOT_TOKEN>/getUpdates
-   ```
-3. Look for the `"chat"` object in the response:
-   ```json
-   "chat": {
-     "id": 987654321,
-     "type": "private"
-   }
-   ```
-4. Copy the `id` value — use it as `TELEGRAM_CHAT_ID` in `.env`
+1. Start a conversation with your bot and send `/start`
+2. Open: `https://api.telegram.org/bot<BOT_TOKEN>/getUpdates`
+3. Find `"chat": { "id": 987654321 }` → use as `TELEGRAM_CHAT_ID` in `.env`
 
-> If the response is empty, send another message to your bot first, then refresh the URL.
+> If the response is empty, send another message to your bot first, then refresh.
 
 ## 3. Installation
 
 ```bash
-# Install bot dependencies
 npm install
-
-# Install sibling project dependencies (required for Puppeteer)
-cd ../voucher-upload-activation-esb && npm install
+cd ../esb-voucher-upload-activation && npm install
 ```
 
 ## 4. Configuration
@@ -54,24 +36,18 @@ cd ../voucher-upload-activation-esb && npm install
 cp .env.example .env
 ```
 
-Fill `.env`:
-
 ```env
-# Telegram Bot
 TELEGRAM_BOT_TOKEN=your_bot_token
 TELEGRAM_CHAT_ID=your_chat_id
-
-# ESB ERP
 ESB_BASE_URL=erp_base_url
-
-# Credentials ESB ERP
 ESB_USERNAME=your_esb_username
 ESB_PASSWORD=your_esb_password
-
-# Logger (default: debug)
+SHOW_BROWSER=false
 LOG_LEVEL=debug
 NODE_ENV=development
 ```
+
+`SHOW_BROWSER=true` shows the browser window during automation. `false` runs headless (default).
 
 ## 5. Running Bot
 
@@ -83,17 +59,15 @@ npm start
 pm2 start ecosystem.config.js
 ```
 
-Only this project needs to be running. The `esb-voucher-upload-activation` project is used as a library — its orchestrator is called directly within the same process.
-
 **Useful PM2 commands:**
 
 ```bash
-pm2 logs BOT-VOUCHER-ESB       # Stream live logs
-pm2 status                     # Check running status
-pm2 restart BOT-VOUCHER-ESB    # Restart the bot
-pm2 stop BOT-VOUCHER-ESB       # Stop the bot
-pm2 save                       # Save process list (persist after reboot)
-pm2 startup                    # Auto-start PM2 on system boot
+pm2 logs BOT-VOUCHER-ESB
+pm2 status
+pm2 restart BOT-VOUCHER-ESB
+pm2 stop BOT-VOUCHER-ESB
+pm2 save
+pm2 startup
 ```
 
 ## 6. Usage via Telegram
@@ -101,50 +75,54 @@ pm2 startup                    # Auto-start PM2 on system boot
 | Command | Description |
 |---|---|
 | `/start` | Show bot info and available commands |
-| `/create` | Start upload new vouchers (CREATE mode) |
-| `/activate` | Start activate vouchers (ACTIVATE mode) |
+| `/create` | Upload new vouchers (CREATE mode) |
+| `/activate` | Activate vouchers (ACTIVATE mode) |
+| `/check` | Check voucher info by code |
+| `/extend` | Extend voucher expiry date |
+| `/delete` | Delete vouchers |
 | `/status` | Check current bot status |
 | `/help` | Show usage guide |
 
-**How to upload:**
+**Upload voucher:**
 1. Send `/create` or `/activate`
-2. Bot will prompt you to send an Excel file
-3. Send your `.xlsx` or `.xls` file
-4. Bot processes the file and sends a detailed result per file
+2. Send your `.xlsx` or `.xls` file
+3. Bot processes and sends a detailed result per file
+
+**Extend voucher (2 ways):**
+- Inline: `/extend KODE1, KODE2 | DD-MM-YYYY`
+- Two-step: send `/extend`, then send `KODE1, KODE2 | DD-MM-YYYY`
+
+If the Update button is not available, bot replies with the current voucher status as the reason.
+
+**Delete voucher (2 ways):**
+- Inline: `/delete KODE1, KODE2 | DD-MM-YYYY`
+- Two-step: send `/delete`, then send `KODE1, KODE2 | DD-MM-YYYY`
+
+If the Delete button is not available, bot replies with the current voucher status as the reason.
 
 ## 7. Notes
 
 - Only 1 process can run at a time
-- Upload session expires in **5 minutes** after sending the command
-- Temp files are automatically deleted after processing (success or failed)
-- If any file fails, bot shows the error detail and instructions to re-upload
+- Session expires in **5 minutes** after sending the command
+- Temp files are automatically deleted after processing
 
 ## 8. Logs
 
 ```bash
-# Real-time log
 tail -f logs/combined.log
-
-# Error log only
 tail -f logs/error.log
 ```
 
 ## 9. Telegram Group Setup
 
-The bot supports group chats. The code already uses `message.chat.id` and `message.from.id` separately, so per-user state works correctly in groups.
+The bot supports group chats. `message.chat.id` and `message.from.id` are handled separately so per-user state works correctly in groups.
 
-**Steps:**
-1. Create a Telegram group and add your bot
-2. Make the bot a **group admin** (so it can read all messages)
-3. Disable **privacy mode** via [@BotFather](https://t.me/BotFather) → `/mybots` → Bot Settings → Group Privacy → Turn off
-4. Get the Group Chat ID (it's always a **negative number**, e.g. `-1001234567890`):
-   - Send any message in the group, then open `https://api.telegram.org/bot<BOT_TOKEN>/getUpdates` and find `"chat": { "id": ... }`
-5. Update `.env`:
-   ```env
-   TELEGRAM_CHAT_ID=-1001234567890
-   ```
+1. Add your bot to the group and make it an **admin**
+2. Disable **privacy mode** via [@BotFather](https://t.me/BotFather) → `/mybots` → Group Privacy → Turn off
+3. Get the Group Chat ID (negative number, e.g. `-1001234567890`) from `getUpdates`
+4. Update `.env`: `TELEGRAM_CHAT_ID=-1001234567890`
 
-> In groups with multiple bots, use `/command@botusername` format to avoid ambiguity.
+> In groups with multiple bots, use `/command@botusername` format.
 
 ## Documentation
 
