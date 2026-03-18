@@ -82,10 +82,6 @@ function isRetryableError(description = '') {
 /**
  * Send a text message to a chat.
  * Retries up to `retries` times with exponential backoff: 2s, 4s, 8s.
- * @param {string} text
- * @param {string|number} [chatId] - Defaults to TELEGRAM_CHAT_ID from env
- * @param {object} [replyMarkup] - Telegram reply_markup object
- * @param {number} [retries]
  */
 async function sendMessage(text, chatId = CHAT_ID, replyMarkup = null, retries = 3) {
   if (!isConfigured()) {
@@ -193,7 +189,6 @@ async function validateToken() {
 
 /**
  * Register bot commands shown in the Telegram command menu (⊞ button).
- * @param {Array<{command: string, description: string}>} commands
  */
 async function setMyCommands(commands) {
   const res = await httpPost(`/bot${BOT_TOKEN}/setMyCommands`, { commands });

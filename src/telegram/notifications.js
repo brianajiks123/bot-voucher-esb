@@ -9,7 +9,6 @@ const logger = require('../utils/logger');
 
 /**
  * Sent to the configured chat when the bot process starts.
- * @param {string|number} [chatId] - Target chat ID; falls back to TELEGRAM_CHAT_ID from env.
  */
 async function sendStartNotification(chatId) {
   const message = `🚀 *Voucher Bot Started*
@@ -31,7 +30,6 @@ async function sendStartNotification(chatId) {
 
 /**
  * Escape special legacy Markdown characters in dynamic text.
- * @param {*} text
  */
 function escapeMd(text) {
   return String(text).replace(/[_*`[]/g, '\\$&');
@@ -39,9 +37,6 @@ function escapeMd(text) {
 
 /**
  * Sent after an upload job finishes, with a per-file result summary.
- * @param {string|number} chatId
- * @param {'CREATE'|'ACTIVATE'} mode
- * @param {Array<{file: string, status: string, message?: string}>} results
  */
 async function sendUploadResultNotification(chatId, mode, results) {
   try {
@@ -79,9 +74,6 @@ async function sendUploadResultNotification(chatId, mode, results) {
 /**
  * Sent when a fatal error occurs before any file is processed.
  * Includes a contextual hint based on the error message.
- * @param {string|number} chatId
- * @param {'CREATE'|'ACTIVATE'} mode
- * @param {string} errorMessage
  */
 async function sendFatalErrorNotification(chatId, mode, errorMessage) {
   const modeLabel = mode === 'CREATE' ? 'Create Voucher' : 'Activate Voucher';
