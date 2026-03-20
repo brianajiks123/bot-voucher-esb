@@ -32,7 +32,7 @@ async function sendStartNotification(chatId) {
  * Escape special legacy Markdown characters in dynamic text.
  */
 function escapeMd(text) {
-  return String(text).replace(/[_*`[]/g, '\\$&');
+  return String(text).replace(/[_*`[]/g, (c) => '\\' + c);
 }
 
 /**
@@ -53,7 +53,7 @@ async function sendUploadResultNotification(chatId, mode, results) {
 
     results.forEach((r, i) => {
       const icon     = r.status.includes('Success') ? '✓' : '✗';
-      const safeFile = r.file.replace(/_/g, '\\_');
+      const safeFile = escapeMd(r.file);
       message += `\n${i + 1}. ${icon} \`${safeFile}\``;
       if (r.message) message += `\n   └ ${escapeMd(r.message)}`;
     });
@@ -79,7 +79,9 @@ async function sendFatalErrorNotification(chatId, mode, errorMessage) {
   const modeLabel = mode === 'CREATE' ? 'Create Voucher' : 'Activate Voucher';
 
   let hint = 'Silakan coba lagi beberapa saat.';
-  if (/login|credential|password|username/i.test(errorMessage)) {
+  if (/login gagal|invalid.*password|username.*password|password.*salah|oops/i.test(errorMessage)) {
+    hint = 'Kredensial ESB salah. Periksa username/password di konfigurasi dan hubungi admin.';
+  } else if (/login|credential|password|username/i.test(errorMessage)) {
     hint = 'Kemungkinan kredensial ESB salah atau sesi bermasalah. Hubungi admin.';
   } else if (/timeout|network|ECONNREFUSED/i.test(errorMessage)) {
     hint = 'Koneksi ke ESB ERP bermasalah. Coba lagi beberapa saat.';
