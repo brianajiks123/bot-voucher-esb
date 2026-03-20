@@ -6,11 +6,11 @@
 /** Normalize user input to a canonical branch key */
 function resolveBranchKey(input) {
   const s = input.trim().toLowerCase();
-  if (s === 'ideologist' || s === 'ideo') return 'ideologist';
+  if (s === 'ideologist' || s === 'ideologis+' || s === 'ideo') return 'ideologist';
   if (s === 'maari ventura' || s === 'ventura') return 'maari_ventura';
   if (s === 'maari bsb' || s === 'bsb') return 'maari_bsb';
-  if (s === 'burgas gombel'   || s === 'burjo ngegas gombel') return 'burgas_gombel';
-  if (s === 'burgas pleburan' || s === 'burjo ngegas pleburan') return 'burgas_pleburan';
+  if (s === 'burjo ngegas gombel' || s === 'burgas gombel') return 'burgas_gombel';
+  if (s === 'burjo ngegas pleburan' || s === 'burgas pleburan') return 'burgas_pleburan';
   return null;
 }
 
@@ -19,8 +19,8 @@ const BRANCH_DISPLAY = {
   ideologist:      'IDEOLOGIS+',
   maari_ventura:   'MAARI VENTURA',
   maari_bsb:       'MAARI BSB',
-  burgas_gombel:   'Burjo Ngegas Gombel',
-  burgas_pleburan: 'Burjo Ngegas Pleburan',
+  burgas_gombel:   'BURJO NGEGAS GOMBEL',
+  burgas_pleburan: 'BURJO NGEGAS PLEBURAN',
 };
 
 /** Credential category per branch */
@@ -56,11 +56,11 @@ function getCredentialsForBranch(branchKey) {
 
 /** List of valid branch input names for user-facing hint */
 const BRANCH_LIST =
-  '- ideologist (atau: ideo)\n' +
-  '- maari ventura (atau: ventura)\n' +
-  '- maari bsb (atau: bsb)\n' +
-  '- burgas gombel (atau: burjo ngegas gombel)\n' +
-  '- burgas pleburan (atau: burjo ngegas pleburan)';
+  '- IDEOLOGIS+ (IDEO)\n' +
+  '- MAARI VENTURA (VENTURA)\n' +
+  '- MAARI BSB (BSB)\n' +
+  '- BURJO NGEGAS GOMBEL (BURGAS GOMBEL)\n' +
+  '- BURJO NGEGAS PLEBURAN (BURGAS PLEBURAN)';
 
 module.exports = {
   resolveBranchKey,
