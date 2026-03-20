@@ -36,6 +36,11 @@ function reply(chatId, text, replyMarkup) {
   return sendMessage(text, chatId, replyMarkup || null);
 }
 
+// Escape Markdown special chars in dynamic text (legacy Markdown mode)
+function esc(text) {
+  return String(text).replace(/[_*`[]/g, '\\$&');
+}
+
 // Strip @botname suffix so commands work in groups
 function parseCommand(text) {
   return text ? text.trim().toLowerCase().replace(/@\S+$/, '') : '';
@@ -99,7 +104,7 @@ async function handleBranchReply(chatId, userId, text, state) {
   const pendingFileName = state.pendingFileName || null;
 
   clearState(userId);
-  await reply(chatId, 'Branch: ' + branchDisplay + '\nMemproses ' + pendingMode + '...');
+  await reply(chatId, 'Branch: ' + esc(branchDisplay) + '\nMemproses ' + esc(pendingMode) + '...');
 
   // Resume the correct flow with resolved credentials
   if (pendingMode === 'CREATE' || pendingMode === 'ACTIVATE') {
@@ -110,14 +115,14 @@ async function handleBranchReply(chatId, userId, text, state) {
       // File belum ada — set state dan minta user kirim file
       setState(userId, pendingMode, { branchKey, credentials });
       await reply(chatId,
-        'Kirim file Excel (.xlsx / .xls) untuk ' + pendingMode + ' voucher branch ' + branchDisplay + '.\n\nSesi kedaluwarsa dalam 5 menit.',
+        'Kirim file Excel (.xlsx / .xls) untuk ' + esc(pendingMode) + ' voucher branch ' + esc(branchDisplay) + '.\n\nSesi kedaluwarsa dalam 5 menit.',
         mainKeyboard()
       );
     }
   } else if (pendingMode === 'CHECK') {
     setState(userId, 'CHECK', { branchKey, credentials });
     await reply(chatId,
-      'Cek Voucher - ' + branchDisplay + '\n\nKirim kode voucher. Pisahkan dengan koma jika lebih dari satu.\n\nContoh: VOUCHER01, VOUCHER02\n\nSesi kedaluwarsa dalam 5 menit.',
+      'Cek Voucher - ' + esc(branchDisplay) + '\n\nKirim kode voucher. Pisahkan dengan koma jika lebih dari satu.\n\nContoh: VOUCHER01, VOUCHER02\n\nSesi kedaluwarsa dalam 5 menit.',
       mainKeyboard()
     );
   } else if (pendingMode === 'EXTEND') {
@@ -141,7 +146,7 @@ async function handleBranchReply(chatId, userId, text, state) {
 
 async function processVoucherUpload(chatId, userId, mode, fileId, fileName, credentials) {
   if (isProcessing) {
-    await reply(chatId, 'Proses sedang berjalan\n\nSaat ini: ' + currentProcess + '\nMohon tunggu.', mainKeyboard());
+    await reply(chatId, 'Proses sedang berjalan\n\nSaat ini: ' + esc(currentProcess) + '\nMohon tunggu.', mainKeyboard());
     return;
   }
 
@@ -150,7 +155,7 @@ async function processVoucherUpload(chatId, userId, mode, fileId, fileName, cred
   clearState(userId);
 
   const modeLabel = mode === 'CREATE' ? 'Create Voucher' : 'Activate Voucher';
-  await reply(chatId, 'File diterima: ' + fileName + '\nSedang memproses ' + modeLabel + '...');
+  await reply(chatId, 'File diterima: ' + esc(fileName) + '\nSedang memproses ' + esc(modeLabel) + '...');
 
   let tempFolder = null;
   try {
@@ -203,7 +208,7 @@ async function handleStart(chatId) {
 
 async function handleCreate(chatId, userId) {
   if (isProcessing) {
-    await reply(chatId, 'Proses sedang berjalan\n\nSaat ini: ' + currentProcess + '\nMohon tunggu.', mainKeyboard());
+    await reply(chatId, 'Proses sedang berjalan\n\nSaat ini: ' + esc(currentProcess) + '\nMohon tunggu.', mainKeyboard());
     return;
   }
   await askBranch(chatId, userId, 'CREATE');
@@ -211,7 +216,7 @@ async function handleCreate(chatId, userId) {
 
 async function handleActivate(chatId, userId) {
   if (isProcessing) {
-    await reply(chatId, 'Proses sedang berjalan\n\nSaat ini: ' + currentProcess + '\nMohon tunggu.', mainKeyboard());
+    await reply(chatId, 'Proses sedang berjalan\n\nSaat ini: ' + esc(currentProcess) + '\nMohon tunggu.', mainKeyboard());
     return;
   }
   await askBranch(chatId, userId, 'ACTIVATE');
@@ -219,7 +224,7 @@ async function handleActivate(chatId, userId) {
 
 async function handleStatus(chatId) {
   const status = isProcessing ? 'Sedang berjalan' : 'Siap';
-  await reply(chatId, 'Status Bot\n\nStatus: ' + status + '\nProses: ' + (currentProcess || '-') + '\nWaktu: ' + new Date().toLocaleString('id-ID'), mainKeyboard());
+  await reply(chatId, 'Status Bot\n\nStatus: ' + esc(status) + '\nProses: ' + esc(currentProcess || '-') + '\nWaktu: ' + new Date().toLocaleString('id-ID'), mainKeyboard());
 }
 
 async function handleHelp(chatId) {
@@ -258,7 +263,7 @@ async function handleCheck(chatId, userId) {
 }
 
 async function handleExtend(chatId, branchDisplay) {
-  const label = branchDisplay ? ' - ' + branchDisplay : '';
+  const label = branchDisplay ? ' - ' + esc(branchDisplay) : '';
   await reply(chatId,
     'Perpanjang Voucher' + label + '\n\n' +
     'Kirim dalam format:\n' +
@@ -270,7 +275,7 @@ async function handleExtend(chatId, branchDisplay) {
 }
 
 async function handleDelete(chatId, branchDisplay) {
-  const label = branchDisplay ? ' - ' + branchDisplay : '';
+  const label = branchDisplay ? ' - ' + esc(branchDisplay) : '';
   await reply(chatId,
     'Hapus Voucher' + label + '\n\n' +
     'Kirim dalam format:\n' +
@@ -298,24 +303,24 @@ async function processVoucherCheck(chatId, userId, text, credentials) {
       const r = results[i];
       const isLast = i === results.length - 1;
       const kb = isLast ? mainKeyboard() : null;
-      if (!r.found) { await reply(chatId, r.voucherCode + '\nVoucher tidak ditemukan.', kb); continue; }
+      if (!r.found) { await reply(chatId, esc(r.voucherCode) + '\nVoucher tidak ditemukan.', kb); continue; }
       const d = r.data;
       await reply(chatId,
-        d.voucherCode + '\n\n' +
-        'Branch: ' + d.branch + '\n' +
-        'Start Date: ' + d.startDate + '\n' +
-        'End Date: ' + d.endDate + '\n' +
-        'Min. Sales Amount: ' + d.minSalesAmount + '\n' +
-        'Voucher Amount: ' + d.voucherAmount + '\n' +
-        'Voucher Sales Price: ' + d.voucherSalesPrice + '\n' +
-        'Additional Info: ' + d.additionalInfo + '\n' +
-        'Status: ' + d.status,
+        esc(d.voucherCode) + '\n\n' +
+        'Branch: ' + esc(d.branch) + '\n' +
+        'Start Date: ' + esc(d.startDate) + '\n' +
+        'End Date: ' + esc(d.endDate) + '\n' +
+        'Min. Sales Amount: ' + esc(d.minSalesAmount) + '\n' +
+        'Voucher Amount: ' + esc(d.voucherAmount) + '\n' +
+        'Voucher Sales Price: ' + esc(d.voucherSalesPrice) + '\n' +
+        'Additional Info: ' + esc(d.additionalInfo) + '\n' +
+        'Status: ' + esc(d.status),
         kb
       );
     }
   } catch (err) {
     logger.error('Check voucher error: ' + err.message);
-    await reply(chatId, 'Gagal mengecek voucher\n\n' + err.message, mainKeyboard());
+    await reply(chatId, 'Gagal mengecek voucher\n\n' + esc(err.message), mainKeyboard());
   }
 }
 
@@ -342,7 +347,7 @@ async function processExtend(chatId, userId, text, credentials) {
 
   const codes = parsed.codes;
   const date = parsed.date;
-  await reply(chatId, 'Memperpanjang ' + codes.length + ' voucher hingga ' + date + '...\nMohon tunggu.');
+  await reply(chatId, 'Memperpanjang ' + codes.length + ' voucher hingga ' + esc(date) + '...\nMohon tunggu.');
   logger.info('Extend ' + codes.length + ' voucher(s) -> ' + date);
 
   try {
@@ -359,12 +364,12 @@ async function processExtend(chatId, userId, text, credentials) {
     msg += 'Total: ' + results.length + ' | Berhasil: ' + success.length + ' | Gagal: ' + failed.length + '\n\n';
     msg += '─────────────────────\n';
     for (let i = 0; i < results.length; i++) {
-      msg += formatVoucherResult(results[i], 'Diperpanjang hingga ' + date) + '\n';
+      msg += esc(formatVoucherResult(results[i], 'Diperpanjang hingga ' + date)) + '\n';
     }
     await reply(chatId, msg.trim(), mainKeyboard());
   } catch (err) {
     logger.error('Extend error: ' + err.message);
-    await reply(chatId, 'Gagal memperpanjang voucher\n\n' + err.message, mainKeyboard());
+    await reply(chatId, 'Gagal memperpanjang voucher\n\n' + esc(err.message), mainKeyboard());
   }
 }
 
@@ -400,12 +405,12 @@ async function processDelete(chatId, userId, text, credentials) {
     msg += 'Total: ' + results.length + ' | Berhasil: ' + success.length + ' | Gagal: ' + failed.length + '\n\n';
     msg += '─────────────────────\n';
     for (let i = 0; i < results.length; i++) {
-      msg += formatVoucherResult(results[i], 'Berhasil dihapus') + '\n';
+      msg += esc(formatVoucherResult(results[i], 'Berhasil dihapus')) + '\n';
     }
     await reply(chatId, msg.trim(), mainKeyboard());
   } catch (err) {
     logger.error('Delete error: ' + err.message);
-    await reply(chatId, 'Gagal menghapus voucher\n\n' + err.message, mainKeyboard());
+    await reply(chatId, 'Gagal menghapus voucher\n\n' + esc(err.message), mainKeyboard());
   }
 }
 
@@ -429,7 +434,7 @@ async function handleDocument(chatId, userId, document) {
       pendingFileName: fileName,
     });
     await reply(chatId,
-      'File diterima: ' + fileName + '\n\nSilakan isi nama branch terlebih dahulu:\n\n' + BRANCH_LIST + '\n\nKirim nama branch yang sesuai.',
+      'File diterima: ' + esc(fileName) + '\n\nSilakan isi nama branch terlebih dahulu:\n\n' + BRANCH_LIST + '\n\nKirim nama branch yang sesuai.',
       mainKeyboard()
     );
     return;
