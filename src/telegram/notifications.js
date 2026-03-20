@@ -52,10 +52,18 @@ async function sendUploadResultNotification(chatId, mode, results) {
     message += `\n─────────────────────\n`;
 
     results.forEach((r, i) => {
-      const icon     = r.status.includes('Success') ? '✓' : '✗';
-      const safeFile = escapeMd(r.file);
-      message += `\n${i + 1}. ${icon} \`${safeFile}\``;
-      if (r.message) message += `\n   └ ${escapeMd(r.message)}`;
+      const icon = r.status.includes('Success') ? '✓' : '✗';
+      message += `\n${i + 1}. ${icon} \`${escapeMd(r.file)}\``;
+
+      if (r.message && !r.status.includes('Success')) {
+        // Format multiline error detail (e.g. "Upload errors:\nRow 2 [CODE]:\n  1. msg")
+        const lines = r.message.split('\n').map((l) => l.trim()).filter(Boolean);
+        lines.forEach((line) => {
+          message += `\n   ${escapeMd(line)}`;
+        });
+      } else if (r.message) {
+        message += `\n   └ ${escapeMd(r.message)}`;
+      }
     });
 
     if (failed.length > 0) {
