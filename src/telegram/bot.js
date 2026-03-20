@@ -5,7 +5,7 @@
 
 const path = require('path');
 const { sendMessage, getUpdates, validateToken, isConfigured, getBotToken, setMyCommands } = require('./telegramClient');
-const { sendUploadResultNotification, sendFatalErrorNotification } = require('./notifications');
+const { sendUploadResultNotification, sendFatalErrorNotification, sendErrorFileToTelegram } = require('./notifications');
 const { mainKeyboard } = require('./keyboard');
 const { resolveBranchKey, BRANCH_DISPLAY, getCredentialsForBranch, BRANCH_LIST } = require('../config/credentials');
 const { createTempFolder, deleteTempFolder, downloadTelegramFile } = require('../utils/tempFiles');
@@ -95,18 +95,25 @@ async function handleBranchReply(chatId, userId, text, state) {
   const credentials   = getCredentialsForBranch(branchKey);
   const pendingMode   = state.pendingMode;
   const pendingData   = state.pendingData;
+  const pendingFileId   = state.pendingFileId   || null;
+  const pendingFileName = state.pendingFileName || null;
 
   clearState(userId);
   await reply(chatId, 'Branch: ' + branchDisplay + '\nMemproses ' + pendingMode + '...');
 
   // Resume the correct flow with resolved credentials
   if (pendingMode === 'CREATE' || pendingMode === 'ACTIVATE') {
-    // File upload — set state back so document handler can pick it up
-    setState(userId, pendingMode, { branchKey, credentials });
-    await reply(chatId,
-      'Kirim file Excel (.xlsx / .xls) untuk ' + pendingMode + ' voucher branch ' + branchDisplay + '.\n\nSesi kedaluwarsa dalam 5 menit.',
-      mainKeyboard()
-    );
+    // Jika file sudah dikirim sebelum branch dipilih, langsung proses
+    if (pendingFileId && pendingFileName) {
+      await processVoucherUpload(chatId, userId, pendingMode, pendingFileId, pendingFileName, credentials);
+    } else {
+      // File belum ada — set state dan minta user kirim file
+      setState(userId, pendingMode, { branchKey, credentials });
+      await reply(chatId,
+        'Kirim file Excel (.xlsx / .xls) untuk ' + pendingMode + ' voucher branch ' + branchDisplay + '.\n\nSesi kedaluwarsa dalam 5 menit.',
+        mainKeyboard()
+      );
+    }
   } else if (pendingMode === 'CHECK') {
     setState(userId, 'CHECK', { branchKey, credentials });
     await reply(chatId,
@@ -157,9 +164,19 @@ async function processVoucherUpload(chatId, userId, mode, fileId, fileName, cred
     );
     const results = await voucherUploadOrchestrate({ credentials: credentials, folderPath: tempFolder }, mode);
     await sendUploadResultNotification(chatId, mode, results);
+
+    // Kirim file Excel error ke Telegram untuk setiap file yang gagal
+    const failedWithFile = results.filter((r) => !r.status.includes('Success') && r.errorFilePath);
+    for (const r of failedWithFile) {
+      await sendErrorFileToTelegram(chatId, r.errorFilePath, r.file);
+    }
   } catch (err) {
     logger.error('Upload [' + mode + '] error: ' + err.message);
     await sendFatalErrorNotification(chatId, mode, err.message);
+    // Kirim file Excel error jika tersedia (error dari esbServices dengan errorFilePath)
+    if (err.errorFilePath) {
+      await sendErrorFileToTelegram(chatId, err.errorFilePath, fileName);
+    }
   } finally {
     if (tempFolder) await deleteTempFolder(tempFolder);
     isProcessing = false;
@@ -396,6 +413,28 @@ async function processDelete(chatId, userId, text, credentials) {
 
 async function handleDocument(chatId, userId, document) {
   const state = getState(userId);
+
+  // User kirim file saat masih di tahap pemilihan branch
+  if (state && state.mode === 'BRANCH_SELECT' && (state.pendingMode === 'CREATE' || state.pendingMode === 'ACTIVATE')) {
+    const fileName = document.file_name || 'voucher.xlsx';
+    if (!/\.(xlsx|xls)$/i.test(fileName)) {
+      await reply(chatId, 'Format tidak didukung. Kirim file .xlsx atau .xls.', mainKeyboard());
+      return;
+    }
+    // Simpan info file ke state agar bisa diproses setelah branch dipilih
+    setState(userId, 'BRANCH_SELECT', {
+      pendingMode: state.pendingMode,
+      pendingData: state.pendingData,
+      pendingFileId: document.file_id,
+      pendingFileName: fileName,
+    });
+    await reply(chatId,
+      'File diterima: ' + fileName + '\n\nSilakan isi nama branch terlebih dahulu:\n\n' + BRANCH_LIST + '\n\nKirim nama branch yang sesuai.',
+      mainKeyboard()
+    );
+    return;
+  }
+
   if (!state || (state.mode !== 'CREATE' && state.mode !== 'ACTIVATE')) {
     await reply(chatId, 'Kirim /create atau /activate terlebih dahulu.', mainKeyboard());
     return;

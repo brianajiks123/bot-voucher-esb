@@ -197,4 +197,75 @@ async function setMyCommands(commands) {
   return res.ok;
 }
 
-module.exports = { sendMessage, answerCallbackQuery, getUpdates, validateToken, isConfigured, getBotToken, setMyCommands };
+/**
+ * Send a document (file) to a chat via multipart/form-data.
+ * caption is optional text shown below the file.
+ */
+async function sendDocument(filePath, chatId = CHAT_ID, caption = '') {
+  if (!isConfigured()) {
+    logger.warn('Telegram is not configured. Document not sent.');
+    return false;
+  }
+
+  const fs = require('fs');
+  const path = require('path');
+
+  if (!fs.existsSync(filePath)) {
+    logger.warn(`sendDocument: file not found: ${filePath}`);
+    return false;
+  }
+
+  const fileBuffer = fs.readFileSync(filePath);
+  const fileName   = path.basename(filePath);
+  const boundary   = '----TelegramBoundary' + Date.now();
+  const CRLF       = '\r\n';
+
+  const buildPart = (name, value) =>
+    `--${boundary}${CRLF}Content-Disposition: form-data; name="${name}"${CRLF}${CRLF}${value}${CRLF}`;
+
+  const bodyParts = Buffer.from(
+    buildPart('chat_id', String(chatId)) +
+    (caption ? buildPart('caption', caption) : '')
+  );
+  const fileHeader = Buffer.from(
+    `--${boundary}${CRLF}` +
+    `Content-Disposition: form-data; name="document"; filename="${fileName}"${CRLF}` +
+    `Content-Type: application/octet-stream${CRLF}${CRLF}`
+  );
+  const fileFooter = Buffer.from(`${CRLF}--${boundary}--${CRLF}`);
+  const body = Buffer.concat([bodyParts, fileHeader, fileBuffer, fileFooter]);
+
+  return new Promise((resolve) => {
+    const options = {
+      hostname: 'api.telegram.org',
+      port: 443,
+      path: `/bot${BOT_TOKEN}/sendDocument`,
+      method: 'POST',
+      headers: {
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        'Content-Length': body.length,
+      },
+    };
+
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.ok) { logger.info('Telegram document sent'); resolve(true); }
+          else { logger.warn(`sendDocument failed: ${parsed.description}`); resolve(false); }
+        } catch (e) {
+          logger.error(`sendDocument parse error: ${e.message}`); resolve(false);
+        }
+      });
+    });
+
+    req.on('error', (e) => { logger.error(`sendDocument error: ${e.message}`); resolve(false); });
+    req.setTimeout(60000, () => { req.destroy(); resolve(false); });
+    req.write(body);
+    req.end();
+  });
+}
+
+module.exports = { sendMessage, sendDocument, answerCallbackQuery, getUpdates, validateToken, isConfigured, getBotToken, setMyCommands };

@@ -3,7 +3,7 @@
  * Message templates for bot notifications: startup, upload result, fatal error.
  */
 
-const { sendMessage } = require('./telegramClient');
+const { sendMessage, sendDocument } = require('./telegramClient');
 const { mainKeyboard } = require('./keyboard');
 const logger = require('../utils/logger');
 
@@ -90,4 +90,18 @@ async function sendFatalErrorNotification(chatId, mode, errorMessage) {
   return sendMessage(message, chatId, mainKeyboard());
 }
 
-module.exports = { sendStartNotification, sendUploadResultNotification, sendFatalErrorNotification };
+/**
+ * Send the ESB error Excel file to Telegram so the user can download it.
+ * Called after a failed upload when an error file is available.
+ */
+async function sendErrorFileToTelegram(chatId, filePath, fileName) {
+  try {
+    const caption = `📎 *File Error ESB*\n\`${escapeMd(fileName)}\`\n\nFile ini berisi detail baris yang gagal diupload ke ESB ERP.`;
+    return sendDocument(filePath, chatId, caption);
+  } catch (err) {
+    logger.error(`sendErrorFileToTelegram error: ${err.message}`);
+    return false;
+  }
+}
+
+module.exports = { sendStartNotification, sendUploadResultNotification, sendFatalErrorNotification, sendErrorFileToTelegram };
