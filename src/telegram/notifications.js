@@ -9,16 +9,16 @@ async function sendStartNotification(chatId) {
   const message = `🚀 *Voucher Bot Started*
 
 📅 Time: ${new Date().toLocaleString('id-ID')}
-🤖 Status: Bot is running
+🤖 Status: Bot is running and ready!
 
 *Available commands:*
-• /create — Upload new vouchers to ESB ERP
-• /activate — Activate vouchers via Excel file
-• /check — Check voucher info by code
-• /extend — Extend voucher expiry date
-• /delete — Delete voucher
-• /status — Check bot status
-• /help — Usage guide`;
+📤 /create — Upload new vouchers to ESB ERP
+✅ /activate — Activate vouchers via Excel file
+🔍 /check — Check voucher info by code
+📅 /extend — Extend voucher expiry date
+🗑️ /delete — Delete voucher
+📊 /status — Check bot status
+❓ /help — Usage guide`;
 
   return sendMessage(message, chatId || undefined, mainKeyboard());
 }
@@ -47,7 +47,7 @@ async function sendUploadResultNotification(chatId, mode, results) {
     message += `\n─────────────────────\n`;
 
     results.forEach((r, i) => {
-      const icon = r.status.includes('Success') ? '✓' : '✗';
+      const icon = r.status.includes('Success') ? '✅' : '❌';
       message += `\n${i + 1}. ${icon} \`${escapeMd(r.file)}\``;
 
       if (r.message && !r.status.includes('Success')) {
@@ -64,7 +64,7 @@ async function sendUploadResultNotification(chatId, mode, results) {
     if (failed.length > 0) {
       message += `\n\n─────────────────────\n`;
       message += `⚠️ *Terdapat ${failed.length} file gagal.*\n`;
-      message += `Silakan upload ulang file yang gagal dengan command /${mode.toLowerCase()}`;
+      message += `🔄 Silakan upload ulang file yang gagal dengan command /${mode.toLowerCase()}`;
     }
 
     return sendMessage(message, chatId, mainKeyboard());

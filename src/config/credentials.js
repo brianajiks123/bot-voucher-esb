@@ -51,11 +51,11 @@ function getCredentialsForBranch(branchKey) {
 
 /** List of valid branch input names for user-facing hint */
 const BRANCH_LIST =
-  '- IDEOLOGIS+ (IDEO)\n' +
-  '- MAARI VENTURA (VENTURA)\n' +
-  '- MAARI BSB (BSB)\n' +
-  '- BURJO NGEGAS GOMBEL (BURGAS GOMBEL)\n' +
-  '- BURJO NGEGAS PLEBURAN (BURGAS PLEBURAN)';
+  '🏪 IDEOLOGIS+ (IDEO)\n' +
+  '🏪 MAARI VENTURA (VENTURA)\n' +
+  '🏪 MAARI BSB (BSB)\n' +
+  '🏪 BURJO NGEGAS GOMBEL (BURGAS GOMBEL)\n' +
+  '🏪 BURJO NGEGAS PLEBURAN (BURGAS PLEBURAN)';
 
 module.exports = {
   resolveBranchKey,
