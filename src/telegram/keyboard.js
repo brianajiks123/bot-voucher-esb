@@ -1,8 +1,3 @@
-/**
- * keyboard.js
- * Persistent reply keyboard shown below the Telegram chat input.
- */
-
 // Returns the main command keyboard layout
 function mainKeyboard() {
   return {
@@ -17,4 +12,16 @@ function mainKeyboard() {
   };
 }
 
-module.exports = { mainKeyboard };
+// Returns inline keyboard for activate method selection
+function activateOptionsKeyboard() {
+  return {
+    inline_keyboard: [
+      [
+        { text: '📁 Via File Excel', callback_data: 'activate_file' },
+        { text: '🔑 Input Kode Voucher', callback_data: 'activate_code' },
+      ],
+    ],
+  };
+}
+
+module.exports = { mainKeyboard, activateOptionsKeyboard };

@@ -1,8 +1,3 @@
-/**
- * tempFiles.js
- * Manages isolated temp folders per user session and downloads files from Telegram.
- */
-
 const fs = require('fs').promises;
 const path = require('path');
 const https = require('https');

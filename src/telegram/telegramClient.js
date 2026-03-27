@@ -1,10 +1,3 @@
-/**
- * telegramClient.js
- * HTTP wrapper for the Telegram Bot API.
- * Handles sendMessage, getUpdates, validateToken, setMyCommands.
- * Uses native `https` module — no external HTTP library required.
- */
-
 const https = require('https');
 const logger = require('../utils/logger');
 const { delay } = require('../utils/delay');

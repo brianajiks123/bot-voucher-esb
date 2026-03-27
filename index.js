@@ -1,6 +1,4 @@
 /**
- * index.js — Entry point: Voucher Upload Bot (Telegram)
- *
  * Commands:
  *   /create   — Upload new vouchers to ESB ERP via Excel file
  *   /activate — Activate vouchers via Excel file

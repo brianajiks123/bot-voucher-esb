@@ -1,8 +1,3 @@
-/**
- * notifications.js
- * Message templates for bot notifications: startup, upload result, fatal error.
- */
-
 const { sendMessage, sendDocument } = require('./telegramClient');
 const { mainKeyboard } = require('./keyboard');
 const logger = require('../utils/logger');

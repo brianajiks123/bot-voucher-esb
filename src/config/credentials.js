@@ -1,8 +1,3 @@
-/**
- * ESB ERP credentials loaded from environment variables.
- * Supports multiple branches with different credential sets.
- */
-
 /** Normalize user input to a canonical branch key */
 function resolveBranchKey(input) {
   const s = input.trim().toLowerCase();

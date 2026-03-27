@@ -1,12 +1,7 @@
-﻿/**
- * bot.js
- * Core bot logic: polling loop, command handlers, state management, flow processors.
- */
-
-const path = require('path');
-const { sendMessage, getUpdates, validateToken, isConfigured, getBotToken, setMyCommands } = require('./telegramClient');
+﻿const path = require('path');
+const { sendMessage, getUpdates, validateToken, isConfigured, getBotToken, setMyCommands, answerCallbackQuery } = require('./telegramClient');
 const { sendUploadResultNotification, sendFatalErrorNotification, sendErrorFileToTelegram } = require('./notifications');
-const { mainKeyboard } = require('./keyboard');
+const { mainKeyboard, activateOptionsKeyboard } = require('./keyboard');
 const { resolveBranchKey, BRANCH_DISPLAY, getCredentialsForBranch, BRANCH_LIST } = require('../config/credentials');
 const { createTempFolder, deleteTempFolder, downloadTelegramFile } = require('../utils/tempFiles');
 const logger = require('../utils/logger');
@@ -108,17 +103,21 @@ async function handleBranchReply(chatId, userId, text, state) {
 
   // Resume the correct flow with resolved credentials
   if (pendingMode === 'CREATE' || pendingMode === 'ACTIVATE') {
-    // Jika file sudah dikirim sebelum branch dipilih, langsung proses
     if (pendingFileId && pendingFileName) {
       await processVoucherUpload(chatId, userId, pendingMode, pendingFileId, pendingFileName, credentials);
     } else {
-      // File belum ada — set state dan minta user kirim file
       setState(userId, pendingMode, { branchKey, credentials });
       await reply(chatId,
         'Kirim file Excel (.xlsx / .xls) untuk ' + esc(pendingMode) + ' voucher branch ' + esc(branchDisplay) + '.\n\nSesi kedaluwarsa dalam 5 menit.',
         mainKeyboard()
       );
     }
+  } else if (pendingMode === 'ACTIVATE_CODE') {
+    setState(userId, 'ACTIVATE_CODE', { branchKey, credentials });
+    await reply(chatId,
+      'Aktivasi Voucher (Kode) - ' + esc(branchDisplay) + '\n\nKirim kode voucher. Pisahkan dengan koma jika lebih dari satu.\n\nContoh: VOUCHER01, VOUCHER02\n\nSesi kedaluwarsa dalam 5 menit.',
+      mainKeyboard()
+    );
   } else if (pendingMode === 'CHECK') {
     setState(userId, 'CHECK', { branchKey, credentials });
     await reply(chatId,
@@ -170,7 +169,6 @@ async function processVoucherUpload(chatId, userId, mode, fileId, fileName, cred
     const results = await voucherUploadOrchestrate({ credentials: credentials, folderPath: tempFolder }, mode);
     await sendUploadResultNotification(chatId, mode, results);
 
-    // Kirim file Excel error ke Telegram untuk setiap file yang gagal
     const failedWithFile = results.filter((r) => !r.status.includes('Success') && r.errorFilePath);
     for (const r of failedWithFile) {
       await sendErrorFileToTelegram(chatId, r.errorFilePath, r.file);
@@ -178,7 +176,6 @@ async function processVoucherUpload(chatId, userId, mode, fileId, fileName, cred
   } catch (err) {
     logger.error('Upload [' + mode + '] error: ' + err.message);
     await sendFatalErrorNotification(chatId, mode, err.message);
-    // Kirim file Excel error jika tersedia (error dari esbServices dengan errorFilePath)
     if (err.errorFilePath) {
       await sendErrorFileToTelegram(chatId, err.errorFilePath, fileName);
     }
@@ -219,7 +216,13 @@ async function handleActivate(chatId, userId) {
     await reply(chatId, 'Proses sedang berjalan\n\nSaat ini: ' + esc(currentProcess) + '\nMohon tunggu.', mainKeyboard());
     return;
   }
-  await askBranch(chatId, userId, 'ACTIVATE');
+  // Ask user to choose activation method
+  setState(userId, 'ACTIVATE_METHOD_SELECT', {});
+  await sendMessage(
+    'Aktivasi Voucher\n\nPilih metode aktivasi:',
+    chatId,
+    activateOptionsKeyboard()
+  );
 }
 
 async function handleStatus(chatId) {
@@ -235,6 +238,12 @@ async function handleHelp(chatId) {
     '2. Pilih nama branch\n' +
     '3. Kirim file .xlsx atau .xls\n' +
     '4. Bot memproses dan mengirim hasilnya\n\n' +
+    'Aktivasi Voucher (2 opsi):\n' +
+    '1. Kirim /activate\n' +
+    '2. Pilih opsi: Via File Excel atau Input Kode Voucher\n' +
+    '   a. Via File: pilih branch, kirim file .xlsx/.xls\n' +
+    '   b. Input Kode: pilih branch, kirim kode voucher (pisah koma jika lebih dari satu)\n' +
+    '      Contoh: VOUCHER01, VOUCHER02\n\n' +
     'Cek Voucher:\n' +
     '1. Kirim /check\n' +
     '2. Pilih nama branch\n' +
@@ -287,6 +296,60 @@ async function handleDelete(chatId, branchDisplay) {
 }
 
 // ─── Flow Processors ──────────────────────────────────────────────────────────
+
+async function processActivateByCode(chatId, userId, text, credentials) {
+  clearState(userId);
+  const codes = text.split(',').map(function(c) { return c.trim(); }).filter(Boolean);
+  if (codes.length === 0) { await reply(chatId, 'Kode voucher tidak valid.', mainKeyboard()); return; }
+
+  if (isProcessing) {
+    await reply(chatId, 'Proses sedang berjalan\n\nSaat ini: ' + esc(currentProcess) + '\nMohon tunggu.', mainKeyboard());
+    return;
+  }
+
+  isProcessing = true;
+  currentProcess = 'ACTIVATE_CODE oleh user ' + userId;
+
+  await reply(chatId, 'Memproses aktivasi ' + codes.length + ' voucher...\nMohon tunggu.');
+  logger.info('Activate by code: ' + codes.join(', '));
+
+  try {
+    const { activateVoucherByCodes } = require(
+      path.resolve(__dirname, '../../../esb-voucher-upload-activation/src/core/esbServices')
+    );
+    const results = await activateVoucherByCodes(credentials, codes);
+
+    const success = results.filter(function(r) { return r.success; });
+    const failed  = results.filter(function(r) { return !r.success; });
+    const icon = failed.length === 0 ? 'Selesai' : success.length === 0 ? 'Gagal' : 'Sebagian';
+
+    let msg = icon + ' - Aktivasi Voucher\n\n';
+    msg += 'Waktu: ' + new Date().toLocaleString('id-ID') + '\n';
+    msg += 'Total: ' + results.length + ' | Berhasil: ' + success.length + ' | Gagal: ' + failed.length + '\n\n';
+    msg += '─────────────────────\n';
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i];
+      if (r.success) {
+        msg += 'OK ' + esc(r.voucherCode) + ': Berhasil diaktivasi\n';
+      } else if (r.reason === 'not_found') {
+        msg += 'TIDAK DITEMUKAN ' + esc(r.voucherCode) + ': Voucher tidak ditemukan\n';
+      } else if (r.reason === 'not_available') {
+        msg += 'TIDAK DAPAT DIPROSES ' + esc(r.voucherCode) + ': Status ' + esc(r.status) + '\n';
+      } else if (r.reason === 'button_unavailable') {
+        msg += 'TIDAK DAPAT DIPROSES ' + esc(r.voucherCode) + ': Tombol aktivasi tidak tersedia (status: ' + esc(r.status) + ')\n';
+      } else {
+        msg += 'GAGAL ' + esc(r.voucherCode) + ': ' + esc(r.message || 'Gagal') + '\n';
+      }
+    }
+    await reply(chatId, msg.trim(), mainKeyboard());
+  } catch (err) {
+    logger.error('Activate by code error: ' + err.message);
+    await reply(chatId, 'Gagal mengaktivasi voucher\n\n' + esc(err.message), mainKeyboard());
+  } finally {
+    isProcessing = false;
+    currentProcess = null;
+  }
+}
 
 async function processVoucherCheck(chatId, userId, text, credentials) {
   clearState(userId);
@@ -419,14 +482,17 @@ async function processDelete(chatId, userId, text, credentials) {
 async function handleDocument(chatId, userId, document) {
   const state = getState(userId);
 
-  // User kirim file saat masih di tahap pemilihan branch
+  if (state && state.mode === 'ACTIVATE_CODE') {
+    await reply(chatId, 'Anda memilih opsi input kode voucher. Kirim kode voucher, bukan file Excel.', mainKeyboard());
+    return;
+  }
+
   if (state && state.mode === 'BRANCH_SELECT' && (state.pendingMode === 'CREATE' || state.pendingMode === 'ACTIVATE')) {
     const fileName = document.file_name || 'voucher.xlsx';
     if (!/\.(xlsx|xls)$/i.test(fileName)) {
       await reply(chatId, 'Format tidak didukung. Kirim file .xlsx atau .xls.', mainKeyboard());
       return;
     }
-    // Simpan info file ke state agar bisa diproses setelah branch dipilih
     setState(userId, 'BRANCH_SELECT', {
       pendingMode: state.pendingMode,
       pendingData: state.pendingData,
@@ -471,6 +537,18 @@ async function handleMessage(message) {
     return;
   }
 
+  // ACTIVATE_CODE flow — user sends voucher codes
+  if (state && state.mode === 'ACTIVATE_CODE' && rawText && !rawText.startsWith('/')) {
+    await processActivateByCode(chatId, userId, rawText, state.credentials);
+    return;
+  }
+
+  // ACTIVATE (file) flow — reject plain text input
+  if (state && state.mode === 'ACTIVATE' && rawText && !rawText.startsWith('/')) {
+    await reply(chatId, 'Anda memilih opsi aktivasi via file. Kirim file Excel (.xlsx / .xls), bukan kode voucher.', mainKeyboard());
+    return;
+  }
+
   // CHECK flow
   if (state && state.mode === 'CHECK' && rawText && !rawText.startsWith('/')) {
     await processVoucherCheck(chatId, userId, rawText, state.credentials);
@@ -505,6 +583,34 @@ async function handleMessage(message) {
   else if (cmd === '/help')                await handleHelp(chatId);
 }
 
+// ─── Callback Query Handler ───────────────────────────────────────────────────
+
+async function handleCallbackQuery(callbackQuery) {
+  const chatId  = callbackQuery.message.chat.id;
+  const userId  = callbackQuery.from ? callbackQuery.from.id : chatId;
+  const data    = callbackQuery.data || '';
+  const queryId = callbackQuery.id;
+
+  // Answer callback to remove loading spinner on button
+  try { await answerCallbackQuery(queryId); } catch (_) {}
+
+  if (data === 'activate_file') {
+    if (isProcessing) {
+      await reply(chatId, 'Proses sedang berjalan\n\nSaat ini: ' + esc(currentProcess) + '\nMohon tunggu.', mainKeyboard());
+      return;
+    }
+    clearState(userId);
+    await askBranch(chatId, userId, 'ACTIVATE');
+  } else if (data === 'activate_code') {
+    if (isProcessing) {
+      await reply(chatId, 'Proses sedang berjalan\n\nSaat ini: ' + esc(currentProcess) + '\nMohon tunggu.', mainKeyboard());
+      return;
+    }
+    clearState(userId);
+    await askBranch(chatId, userId, 'ACTIVATE_CODE');
+  }
+}
+
 // ─── Polling Loop ─────────────────────────────────────────────────────────────
 
 async function startBot() {
@@ -537,6 +643,7 @@ async function startBot() {
       for (const update of updates) {
         offset = update.update_id + 1;
         if (update.message) await handleMessage(update.message);
+        if (update.callback_query) await handleCallbackQuery(update.callback_query);
       }
     } catch (err) {
       logger.error('Bot loop error: ' + err.message);
