@@ -40,8 +40,10 @@ cp .env.example .env
 TELEGRAM_BOT_TOKEN=your_bot_token
 TELEGRAM_CHAT_ID=your_chat_id
 ESB_BASE_URL=erp_base_url
-ESB_USERNAME=your_esb_username
-ESB_PASSWORD=your_esb_password
+IMVB_USERNAME=your_imvb_username
+IMVB_PASSWORD=your_imvb_password
+BURGAS_USERNAME=your_burgas_username
+BURGAS_PASSWORD=your_burgas_password
 SHOW_BROWSER=false
 LOG_LEVEL=debug
 NODE_ENV=development
@@ -75,30 +77,109 @@ pm2 startup
 | Command | Description |
 |---|---|
 | `/start` | Show bot info and available commands |
-| `/create` | Upload new vouchers (CREATE mode) |
-| `/activate` | Activate vouchers (ACTIVATE mode) |
+| `/create` | Upload new vouchers via Excel file |
+| `/activate` | Activate vouchers — via Excel file or input voucher codes |
 | `/check` | Check voucher info by code |
 | `/extend` | Extend voucher expiry date |
 | `/delete` | Delete vouchers |
 | `/status` | Check current bot status |
 | `/help` | Show usage guide |
 
-**Upload voucher:**
-1. Send `/create` or `/activate`
-2. Send your `.xlsx` or `.xls` file
-3. Bot processes and sends a detailed result per file
+All commands that require branch selection will prompt you to pick a branch first.
 
-**Extend voucher (2 ways):**
-- Inline: `/extend KODE1, KODE2 | DD-MM-YYYY`
-- Two-step: send `/extend`, then send `KODE1, KODE2 | DD-MM-YYYY`
+**Available branches:**
+- IDEOLOGIS+ (IDEO)
+- MAARI VENTURA (VENTURA)
+- MAARI BSB (BSB)
+- BURJO NGEGAS GOMBEL (BURGAS GOMBEL)
+- BURJO NGEGAS PLEBURAN (BURGAS PLEBURAN)
+
+---
+
+### Create voucher
+
+1. Send `/create`
+2. Select branch
+3. Send `.xlsx` or `.xls` file
+4. Bot uploads to ESB ERP and sends a result report
+
+---
+
+### Activate voucher
+
+Send `/activate` — bot presents two options via inline keyboard:
+
+**Option A — Via Excel file:**
+1. Select branch
+2. Send `.xlsx` or `.xls` file
+3. Bot uploads to ESB ERP and sends a result report
+
+**Option B — Input voucher codes:**
+1. Select branch
+2. Send voucher codes (comma-separated). Date is optional — defaults to today.
+
+```
+KODE1, KODE2
+KODE1, KODE2 | DD-MM-YYYY
+```
+
+Bot silently checks each voucher status first:
+- Status `available` → activates immediately
+- Other status → reported to user, skipped
+
+Result report is sent after all codes are processed.
+
+> Sending an Excel file while in code-input mode (and vice versa) will be rejected.
+
+---
+
+### Check voucher
+
+1. Send `/check`
+2. Select branch
+3. Send voucher codes (comma-separated)
+
+Bot replies with full voucher info per code.
+
+---
+
+### Extend voucher expiry
+
+Two ways:
+
+```
+# Inline (single message)
+/extend KODE1, KODE2
+/extend KODE1, KODE2 | DD-MM-YYYY
+
+# Two-step
+/extend  →  select branch  →  send codes
+```
+
+Date is optional — defaults to today if omitted.
 
 If the Update button is not available, bot replies with the current voucher status as the reason.
 
-**Delete voucher (2 ways):**
-- Inline: `/delete KODE1, KODE2 | DD-MM-YYYY`
-- Two-step: send `/delete`, then send `KODE1, KODE2 | DD-MM-YYYY`
+---
+
+### Delete voucher
+
+Two ways:
+
+```
+# Inline (single message)
+/delete KODE1, KODE2
+/delete KODE1, KODE2 | DD-MM-YYYY
+
+# Two-step
+/delete  →  select branch  →  send codes
+```
+
+Date is optional — defaults to today if omitted.
 
 If the Delete button is not available, bot replies with the current voucher status as the reason.
+
+---
 
 ## 7. Notes
 
