@@ -1,4 +1,3 @@
-// Returns the main command keyboard layout
 function mainKeyboard() {
   return {
     keyboard: [
@@ -12,7 +11,17 @@ function mainKeyboard() {
   };
 }
 
-// Returns inline keyboard for activate method selection
+function createOptionsKeyboard() {
+  return {
+    inline_keyboard: [
+      [
+        { text: '📁 Via File Excel', callback_data: 'create_file' },
+        { text: '⚡ Generate',       callback_data: 'create_generate' },
+      ],
+    ],
+  };
+}
+
 function activateOptionsKeyboard() {
   return {
     inline_keyboard: [
@@ -24,4 +33,18 @@ function activateOptionsKeyboard() {
   };
 }
 
-module.exports = { mainKeyboard, activateOptionsKeyboard };
+function generateModeKeyboard() {
+  return {
+    inline_keyboard: [
+      [{ text: '1️⃣  Single Mode',            callback_data: 'gen_single'        }],
+      [{ text: '2️⃣  Multiple Mode',           callback_data: 'gen_multiple'      }],
+      [{ text: '3️⃣  Custom Prefix',           callback_data: 'gen_prefix'        }],
+      [{ text: '4️⃣  Custom Branch',           callback_data: 'gen_custom_branch' }],
+      [{ text: '5️⃣  Custom Prefix + Branch',  callback_data: 'gen_prefix_branch' }],
+      [{ text: '6️⃣  Multiple Voucher Amount', callback_data: 'gen_multi_amount'  }],
+      [{ text: '7️⃣  Multiple Branches',       callback_data: 'gen_multi_branch'  }],
+    ],
+  };
+}
+
+module.exports = { mainKeyboard, createOptionsKeyboard, activateOptionsKeyboard, generateModeKeyboard };

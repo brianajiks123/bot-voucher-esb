@@ -1,13 +1,13 @@
 const path = require('path');
-const { sendMessage, getUpdates, validateToken, isConfigured, getBotToken, setMyCommands, answerCallbackQuery } = require('./telegramClient');
+const { sendMessage, sendDocument, getUpdates, validateToken, isConfigured, getBotToken, setMyCommands, answerCallbackQuery } = require('./telegramClient');
 const { sendUploadResultNotification, sendFatalErrorNotification, sendErrorFileToTelegram } = require('./notifications');
-const { mainKeyboard, activateOptionsKeyboard } = require('./keyboard');
+const { mainKeyboard, createOptionsKeyboard, activateOptionsKeyboard, generateModeKeyboard } = require('./keyboard');
 const { resolveBranchKey, BRANCH_DISPLAY, getCredentialsForBranch, BRANCH_LIST } = require('../config/credentials');
 const { createTempFolder, deleteTempFolder, downloadTelegramFile } = require('../utils/tempFiles');
+const { generateVouchers } = require('../voucher/generator');
 const logger = require('../utils/logger');
 const { delay } = require('../utils/delay');
 
-// Per-user state. Modes: CREATE | ACTIVATE | CHECK | EXTEND | DELETE | BRANCH_SELECT. Expires after 5 minutes.
 const userStates = new Map();
 const STATE_TTL_MS = 5 * 60 * 1000;
 
@@ -31,18 +31,14 @@ function reply(chatId, text, replyMarkup) {
   return sendMessage(text, chatId, replyMarkup || null);
 }
 
-// Escape Markdown special chars in dynamic text (legacy Markdown mode)
 function esc(text) {
   return String(text).replace(/[_*`[]/g, '\\$&');
 }
 
-// Strip @botname suffix so commands work in groups
 function parseCommand(text) {
   return text ? text.trim().toLowerCase().replace(/@\S+$/, '') : '';
 }
 
-// Parse "CODE1, CODE2" or "CODE1, CODE2 | DD-MM-YYYY" format, returns { codes, date } or null
-// Date is optional — defaults to today if omitted.
 function parseCodesAndDate(text) {
   const parts = text.split('|').map(function(p) { return p.trim(); });
   const codes = parts[0].split(',').map(function(c) { return c.trim(); }).filter(Boolean);
@@ -65,7 +61,6 @@ function parseCodesAndDate(text) {
   return { codes: codes, date: date };
 }
 
-// Extract inline data after command, e.g. "/extend KODE | DATE" -> "KODE | DATE"
 function extractInlineData(rawText) {
   const spaceIdx = rawText.indexOf(' ');
   if (spaceIdx === -1) return null;
@@ -73,12 +68,8 @@ function extractInlineData(rawText) {
   return data.length > 0 ? data : null;
 }
 
-// Constant purpose used for all code-based activations
 const ACTIVATE_PURPOSE = 'voucher';
 
-// Parse "CODE1, CODE2" or "CODE1, CODE2 | DD-MM-YYYY" for activate-by-code.
-// Date is optional - defaults to today if omitted.
-// Returns { codes, date } or null on invalid input.
 function parseCodesForActivate(text) {
   const parts = text.split('|').map(function(p) { return p.trim(); });
   const codes = parts[0].split(',').map(function(c) { return c.trim(); }).filter(Boolean);
@@ -104,10 +95,6 @@ function parseCodesForActivate(text) {
 
 // --- Branch Selection ---------------------------------------------------------
 
-/**
- * Ask user to pick a branch. Stores the pending mode (and optional inline data)
- * so we can resume after branch is confirmed.
- */
 async function askBranch(chatId, userId, pendingMode, pendingData) {
   setState(userId, 'BRANCH_SELECT', { pendingMode, pendingData: pendingData || null });
   await reply(chatId,
@@ -116,10 +103,6 @@ async function askBranch(chatId, userId, pendingMode, pendingData) {
   );
 }
 
-/**
- * Handle user reply when state is BRANCH_SELECT.
- * Resolves branch key, picks credentials, then resumes the pending flow.
- */
 async function handleBranchReply(chatId, userId, text, state) {
   const branchKey = resolveBranchKey(text);
   if (!branchKey) {
@@ -140,7 +123,6 @@ async function handleBranchReply(chatId, userId, text, state) {
   clearState(userId);
   await reply(chatId, '🏪 Branch: ' + esc(branchDisplay) + '\n⏳ Memproses ' + esc(pendingMode) + '...');
 
-  // Resume the correct flow with resolved credentials
   if (pendingMode === 'CREATE' || pendingMode === 'ACTIVATE') {
     if (pendingFileId && pendingFileName) {
       await processVoucherUpload(chatId, userId, pendingMode, pendingFileId, pendingFileName, credentials);
@@ -251,7 +233,12 @@ async function handleCreate(chatId, userId) {
     await reply(chatId, '⏳ *Proses sedang berjalan*\n\nSaat ini: ' + esc(currentProcess) + '\nMohon tunggu.', mainKeyboard());
     return;
   }
-  await askBranch(chatId, userId, 'CREATE');
+  setState(userId, 'CREATE_METHOD_SELECT', {});
+  await sendMessage(
+    '📤 *Upload Voucher Baru*\n\nPilih metode:',
+    chatId,
+    createOptionsKeyboard()
+  );
 }
 
 async function handleActivate(chatId, userId) {
@@ -259,7 +246,6 @@ async function handleActivate(chatId, userId) {
     await reply(chatId, '⏳ *Proses sedang berjalan*\n\nSaat ini: ' + esc(currentProcess) + '\nMohon tunggu.', mainKeyboard());
     return;
   }
-  // Ask user to choose activation method
   setState(userId, 'ACTIVATE_METHOD_SELECT', {});
   await sendMessage(
     '✅ *Aktivasi Voucher*\n\nPilih metode aktivasi:',
@@ -276,36 +262,44 @@ async function handleStatus(chatId) {
 async function handleHelp(chatId) {
   await reply(chatId,
     '❓ *Panduan Penggunaan*\n\n' +
-    '📤 *Upload Voucher:*\n' +
-    '1. Kirim /create atau /activate\n' +
-    '2. Pilih nama branch\n' +
-    '3. Kirim file .xlsx atau .xls\n' +
-    '4. Bot memproses dan mengirim hasilnya\n\n' +
-    '✅ *Aktivasi Voucher (2 opsi):*\n' +
+    '📤 *Upload Voucher Baru (/create) — 2 opsi:*\n' +
+    '1. Kirim /create\n' +
+    '2. Pilih opsi: Via File Excel atau Generate\n' +
+    '   a. Via File: pilih branch → kirim file .xlsx/.xls\n' +
+    '   b. Generate: pilih tipe → pilih branch → kirim data\n' +
+    '      Bot generate Excel, upload ke ESB ERP,\n' +
+    '      lalu kirim file .zip hasil generate ke Anda\n\n' +
+    '⚡ *Tipe Generate (/create → Generate):*\n' +
+    '1️⃣ Single — satu file untuk seluruh periode\n' +
+    '   `single plb 30 1 4 - 30 4 2026 0 5000-10 "Testing"`\n' +
+    '2️⃣ Multiple — satu file per tanggal\n' +
+    '   `multiple ven 30 1 4 - 30 4 2026 0 5000-10 "Testing"`\n' +
+    '3️⃣ Custom Prefix — prefix kustom dalam tanda kutip\n' +
+    '   `single gom "VO" 30 1 4 - 30 4 2026 0 5000-10 "Testing"`\n' +
+    '4️⃣ Custom Branch — branch di kolom "Can Use on Branch"\n' +
+    '   `single "gom, plb" 30 1 4 - 30 4 2026 0 5000-10 "Testing"`\n' +
+    '5️⃣ Custom Prefix + Branch — gabungan prefix & custom branch\n' +
+    '   `single "gom, plb" "VO" 30 1 4 - 30 4 2026 0 5000-10 "Testing"`\n' +
+    '6️⃣ Multiple Amount — beberapa nominal, pisah spasi\n' +
+    '   `single bsb 30 1 3 - 18 3 2026 0 10000-15 20000-12 "Promo"`\n' +
+    '7️⃣ Multiple Branches — pisahkan dengan ` | `\n' +
+    '   `single ven "VO" 30 1 4 - 30 4 2026 0 5000-10 "Test" | multiple ideo 30 1 4 - 30 4 2026 0 5000-10 "Test"`\n\n' +
+    '✅ *Aktivasi Voucher (/activate) — 2 opsi:*\n' +
     '1. Kirim /activate\n' +
     '2. Pilih opsi: Via File Excel atau Input Kode Voucher\n' +
-    '   a. Via File: pilih branch, kirim file .xlsx/.xls\n' +
-    '   b. Input Kode: pilih branch, kirim kode voucher (pisah koma jika lebih dari satu)\n' +
-    '      Tanggal opsional (default: hari ini)\n' +
-    '      Contoh: VOUCHER01, VOUCHER02\n' +
-    '      Contoh dengan tanggal: VOUCHER01, VOUCHER02 | 27-03-2026\n\n' +
-    '🔍 *Cek Voucher:*\n' +
-    '1. Kirim /check\n' +
-    '2. Pilih nama branch\n' +
-    '3. Kirim kode voucher (pisah koma jika lebih dari satu)\n\n' +
-    '📅 *Perpanjang Voucher (2 cara):*\n' +
-    'a. Inline: /extend KODE1, KODE2 | DD-MM-YYYY\n' +
-    'b. Dua langkah: kirim /extend, lalu kirim KODE1, KODE2 atau KODE1, KODE2 | DD-MM-YYYY\n' +
-    '   Contoh: VOUCHER01, VOUCHER02\n' +
-    '   Contoh dengan tanggal: VOUCHER01, VOUCHER02 | 31-12-2025\n' +
-    '   (tanggal opsional, default: hari ini)\n\n' +
-    '🗑️ *Hapus Voucher (2 cara):*\n' +
-    'a. Inline: /delete KODE1, KODE2 | DD-MM-YYYY\n' +
-    'b. Dua langkah: kirim /delete, lalu kirim KODE1, KODE2 atau KODE1, KODE2 | DD-MM-YYYY\n' +
-    '   Contoh: VOUCHER01, VOUCHER02\n' +
-    '   Contoh dengan tanggal: VOUCHER01, VOUCHER02 | 31-12-2025\n' +
-    '   (tanggal opsional, default: hari ini)\n\n' +
-    '🏪 *Nama Branch yang tersedia:*\n' + BRANCH_LIST + '\n\n' +
+    '   a. Via File: pilih branch → kirim file .xlsx/.xls\n' +
+    '   b. Input Kode: pilih branch → kirim kode voucher\n' +
+    '      Format: KODE1, KODE2 | DD-MM-YYYY (tanggal opsional)\n\n' +
+    '🔍 *Cek Voucher (/check):*\n' +
+    '1. Kirim /check → pilih branch → kirim kode voucher\n\n' +
+    '📅 *Ubah Masa Berlaku Voucher (/extend):*\n' +
+    '1. Kirim /extend → pilih branch → kirim kode\n' +
+    '   Format: KODE1, KODE2 atau KODE1, KODE2 | DD-MM-YYYY\n\n' +
+    '🗑️ *Hapus Voucher (/delete):*\n' +
+    '1. Kirim /delete → pilih branch → kirim kode\n' +
+    '   Format: KODE1, KODE2 atau KODE1, KODE2 | DD-MM-YYYY\n\n' +
+    '🏪 *Branch alias:* ven | bsb | gom | plb | ideo\n\n' +
+    '🏪 *Branch yang tersedia:*\n' + BRANCH_LIST + '\n\n' +
     '📌 *Catatan:*\n' +
     '- Hanya 1 proses berjalan bersamaan\n' +
     '- Sesi kedaluwarsa dalam 5 menit\n' +
@@ -321,7 +315,7 @@ async function handleCheck(chatId, userId) {
 async function handleExtend(chatId, branchDisplay) {
   const label = branchDisplay ? ' - ' + esc(branchDisplay) : '';
   await reply(chatId,
-    '📅 *Perpanjang Voucher*' + label + '\n\n' +
+    '📅 *Ubah Masa Berlaku Voucher*' + label + '\n\n' +
     'Kirim kode voucher. Tanggal opsional (default: hari ini).\n\n' +
     '📋 Format:\n' +
     'KODE1, KODE2\n' +
@@ -452,7 +446,6 @@ async function processVoucherCheck(chatId, userId, text, credentials) {
   }
 }
 
-// Format per-voucher result for extend/delete summary
 function formatVoucherResult(r, successMsg) {
   if (r.success) return '✅ ' + r.voucherCode + ': ' + successMsg;
   if (r.reason === 'not_found') return '🔍 ' + r.voucherCode + ': Voucher tidak ditemukan';
@@ -487,7 +480,7 @@ async function processExtend(chatId, userId, text, credentials) {
     const failed  = results.filter(function(r) { return !r.success; });
     const icon = failed.length === 0 ? '✅ Selesai' : success.length === 0 ? '❌ Gagal' : '⚠️ Sebagian';
 
-    let msg = icon + ' - *Perpanjang Voucher*\n\n';
+    let msg = icon + ' - *Ubah Masa Berlaku Voucher*\n\n';
     msg += '📅 Waktu: ' + new Date().toLocaleString('id-ID') + '\n';
     msg += '📊 Total: ' + results.length + ' | ✅ Berhasil: ' + success.length + ' | ❌ Gagal: ' + failed.length + '\n\n';
     msg += '─────────────────────\n';
@@ -497,7 +490,7 @@ async function processExtend(chatId, userId, text, credentials) {
     await reply(chatId, msg.trim(), mainKeyboard());
   } catch (err) {
     logger.error('Extend error: ' + err.message);
-    await reply(chatId, '❌ *Gagal memperpanjang voucher*\n\n' + esc(err.message), mainKeyboard());
+    await reply(chatId, '❌ *Gagal memUbah Masa Berlaku voucher*\n\n' + esc(err.message), mainKeyboard());
   }
 }
 
@@ -539,6 +532,84 @@ async function processDelete(chatId, userId, text, credentials) {
   } catch (err) {
     logger.error('Delete error: ' + err.message);
     await reply(chatId, '❌ *Gagal menghapus voucher*\n\n' + esc(err.message), mainKeyboard());
+  }
+}
+
+// --- Generate Processor -------------------------------------------------------
+
+async function processGenerate(chatId, userId, text, credentials) {
+  if (isProcessing) {
+    await reply(chatId, '⏳ *Proses sedang berjalan*\n\nSaat ini: ' + esc(currentProcess) + '\nMohon tunggu.', mainKeyboard());
+    return;
+  }
+
+  clearState(userId);
+  isProcessing = true;
+  currentProcess = 'Generate Voucher oleh user ' + userId;
+
+  await reply(chatId, '⚡ *Generating voucher...*\nMohon tunggu.');
+
+  const os = require('os');
+  const fs2 = require('fs');
+  const baseDir = path.join(os.tmpdir(), 'vgen_' + userId + '_' + Date.now());
+  let zipPath = null;
+
+  try {
+    const result = await generateVouchers(text, baseDir);
+    zipPath = result.zipPath;
+
+    await reply(chatId,
+      '✅ *Generate selesai!*\n\n' + result.summary.map(function(s) { return esc(s); }).join('\n') +
+      '\n\n🔄 Sedang upload ke ESB ERP...'
+    );
+
+    const branchDirs = fs2.readdirSync(baseDir).filter(function(d) {
+      return fs2.statSync(path.join(baseDir, d)).isDirectory();
+    });
+
+    for (const branchDir of branchDirs) {
+      const voucherFolder = path.join(baseDir, branchDir, 'Voucher');
+      if (!fs2.existsSync(voucherFolder)) continue;
+
+      const branchKey = resolveBranchKey(branchDir.replace(/-/g, ' '));
+      const branchCreds = (branchKey ? getCredentialsForBranch(branchKey) : null) || credentials;
+      if (!branchCreds) {
+        await reply(chatId, '⚠️ Credentials untuk branch *' + esc(branchDir) + '* tidak ditemukan, dilewati.');
+        continue;
+      }
+
+      await reply(chatId, '📤 Upload *' + esc(branchDir) + '* ke ESB ERP...');
+      try {
+        const { voucherUploadOrchestrate } = require(
+          path.resolve(__dirname, '../../../esb-voucher-upload-activation/src/core/orchestrator')
+        );
+        const results = await voucherUploadOrchestrate({ credentials: branchCreds, folderPath: voucherFolder }, 'CREATE');
+        await sendUploadResultNotification(chatId, 'CREATE (' + branchDir + ')', results);
+
+        const failedWithFile = results.filter(function(r) { return !r.status.includes('Success') && r.errorFilePath; });
+        for (const r of failedWithFile) {
+          await sendErrorFileToTelegram(chatId, r.errorFilePath, r.file);
+        }
+      } catch (uploadErr) {
+        logger.error('Generate upload error [' + branchDir + ']: ' + uploadErr.message);
+        await reply(chatId, '⚠️ Upload *' + esc(branchDir) + '* gagal: ' + esc(uploadErr.message));
+      }
+    }
+
+    await reply(chatId, '📦 Mengirim file hasil generate...');
+    await sendDocument(zipPath, chatId, 'Hasil generate voucher');
+    await reply(chatId, '✅ *Selesai!* File zip berisi folder/file Excel hasil generate telah dikirim.', mainKeyboard());
+
+  } catch (err) {
+    logger.error('Generate error: ' + err.message);
+    await reply(chatId, '❌ *Generate gagal*\n\n' + esc(err.message), mainKeyboard());
+  } finally {
+    try {
+      if (fs2.existsSync(baseDir)) fs2.rmSync(baseDir, { recursive: true, force: true });
+      if (zipPath && fs2.existsSync(zipPath)) fs2.unlinkSync(zipPath);
+    } catch (_) {}
+    isProcessing = false;
+    currentProcess = null;
   }
 }
 
@@ -596,30 +667,25 @@ async function handleMessage(message) {
 
   const state = getState(userId);
 
-  // BRANCH_SELECT flow � user is replying with a branch name
   if (state && state.mode === 'BRANCH_SELECT' && rawText && !rawText.startsWith('/')) {
     await handleBranchReply(chatId, userId, rawText, state);
     return;
   }
 
-  // ACTIVATE_CODE flow � user sends voucher codes
   if (state && state.mode === 'ACTIVATE_CODE' && rawText && !rawText.startsWith('/')) {
     await processActivateByCode(chatId, userId, rawText, state.credentials);
     return;
   }
-  // ACTIVATE (file) flow � reject plain text input
   if (state && state.mode === 'ACTIVATE' && rawText && !rawText.startsWith('/')) {
     await reply(chatId, 'Anda memilih opsi aktivasi via file. Kirim file Excel (.xlsx / .xls), bukan kode voucher.', mainKeyboard());
     return;
   }
 
-  // CHECK flow
   if (state && state.mode === 'CHECK' && rawText && !rawText.startsWith('/')) {
     await processVoucherCheck(chatId, userId, rawText, state.credentials);
     return;
   }
 
-  // EXTEND / DELETE two-step flow
   if (state && state.mode === 'EXTEND' && rawText && !rawText.startsWith('/')) {
     await processExtend(chatId, userId, rawText, state.credentials);
     return;
@@ -629,14 +695,17 @@ async function handleMessage(message) {
     return;
   }
 
-  // EXTEND inline: /extend CODE1, CODE2 | DD-MM-YYYY
+  if (state && state.mode === 'CREATE_GENERATE' && rawText && !rawText.startsWith('/')) {
+    await processGenerate(chatId, userId, rawText, state.credentials);
+    return;
+  }
+
   if (cmd.startsWith('/extend')) {
     const inlineData = extractInlineData(rawText);
     await askBranch(chatId, userId, 'EXTEND', inlineData);
     return;
   }
 
-  // DELETE inline: /delete CODE1, CODE2 | DD-MM-YYYY
   if (cmd.startsWith('/delete')) {
     const inlineData = extractInlineData(rawText);
     await askBranch(chatId, userId, 'DELETE', inlineData);
@@ -659,10 +728,100 @@ async function handleCallbackQuery(callbackQuery) {
   const data    = callbackQuery.data || '';
   const queryId = callbackQuery.id;
 
-  // Answer callback to remove loading spinner on button
   try { await answerCallbackQuery(queryId); } catch (_) {}
 
-  if (data === 'activate_file') {
+  if (data === 'create_file') {
+    if (isProcessing) {
+      await reply(chatId, '⏳ *Proses sedang berjalan*\n\nSaat ini: ' + esc(currentProcess) + '\nMohon tunggu.', mainKeyboard());
+      return;
+    }
+    clearState(userId);
+    await askBranch(chatId, userId, 'CREATE');
+  } else if (data === 'create_generate') {
+    if (isProcessing) {
+      await reply(chatId, '⏳ *Proses sedang berjalan*\n\nSaat ini: ' + esc(currentProcess) + '\nMohon tunggu.', mainKeyboard());
+      return;
+    }
+    clearState(userId);
+    await sendMessage(
+      '⚡ *Generate Voucher*\n\nPilih tipe generate:',
+      chatId,
+      generateModeKeyboard()
+    );
+  } else if (data === 'gen_single') {
+    clearState(userId);
+    setState(userId, 'CREATE_GENERATE', { credentials: null });
+    await reply(chatId,
+      '1️⃣ *Single Mode* — satu file untuk seluruh periode\n\n' +
+      '📋 Format:\n`single <branch> [prefix] <len> <startDay> <startMonth> - <endDay> <endMonth> <year> <minSales> <amount>-<qty> "<notes>"`\n\n' +
+      '📝 Contoh:\n`single plb 30 1 4 - 30 4 2026 0 5000-10 "Testing"`\n\n' +
+      'Kirim input generate:',
+      mainKeyboard()
+    );
+  } else if (data === 'gen_multiple') {
+    clearState(userId);
+    setState(userId, 'CREATE_GENERATE', { credentials: null });
+    await reply(chatId,
+      '2️⃣ *Multiple Mode* — satu file per tanggal\n\n' +
+      '📋 Format:\n`multiple <branch> [prefix] <len> <startDay> <startMonth> - <endDay> <endMonth> <year> <minSales> <amount>-<qty> "<notes>"`\n\n' +
+      '📝 Contoh:\n`multiple ven 30 1 4 - 30 4 2026 0 5000-10 "Testing"`\n\n' +
+      'Kirim input generate:',
+      mainKeyboard()
+    );
+  } else if (data === 'gen_prefix') {
+    clearState(userId);
+    setState(userId, 'CREATE_GENERATE', { credentials: null });
+    await reply(chatId,
+      '3️⃣ *Custom Prefix* — tambahkan prefix kustom di dalam tanda kutip sebelum panjang kode\n\n' +
+      '📋 Format:\n`single <branch> "PREFIX" <len> <startDay> <startMonth> - <endDay> <endMonth> <year> <minSales> <amount>-<qty> "<notes>"`\n\n' +
+      '📝 Contoh:\n`single gom "VO" 30 1 4 - 30 4 2026 0 5000-10 "Testing"`\n`multiple gom "VO" 30 1 4 - 30 4 2026 0 5000-10 "Testing"`\n\n' +
+      'Kirim input generate:',
+      mainKeyboard()
+    );
+  } else if (data === 'gen_custom_branch') {
+    clearState(userId);
+    setState(userId, 'CREATE_GENERATE', { credentials: null });
+    await reply(chatId,
+      '4️⃣ *Custom Branch* — tentukan branch mana saja yang bisa menggunakan voucher ini\n\n' +
+      'Branch ditulis dalam tanda kutip sebagai token kedua setelah mode, pisahkan dengan koma.\n\n' +
+      '📋 Format:\n`single "<branch1>, <branch2>" <len> <startDay> <startMonth> - <endDay> <endMonth> <year> <minSales> <amount>-<qty> "<notes>"`\n\n' +
+      '📝 Contoh:\n`single "gom, plb" 30 1 4 - 30 4 2026 0 5000-10 "Testing"`\n`multiple "ven, bsb" 30 1 4 - 30 4 2026 0 5000-10 "Testing"`\n\n' +
+      'Kirim input generate:',
+      mainKeyboard()
+    );
+  } else if (data === 'gen_prefix_branch') {
+    clearState(userId);
+    setState(userId, 'CREATE_GENERATE', { credentials: null });
+    await reply(chatId,
+      '5️⃣ *Custom Prefix + Branch* — gabungan prefix kustom dan custom branch\n\n' +
+      'Custom branch di posisi kedua, prefix di posisi ketiga, keduanya dalam tanda kutip.\n\n' +
+      '📋 Format:\n`single "<branch1>, <branch2>" "PREFIX" <len> <startDay> <startMonth> - <endDay> <endMonth> <year> <minSales> <amount>-<qty> "<notes>"`\n\n' +
+      '📝 Contoh:\n`single "gom, plb" "VO" 30 1 4 - 30 4 2026 0 5000-10 "Testing"`\n`multiple "ven, bsb" "VO" 30 1 4 - 30 4 2026 0 5000-10 "Testing"`\n\n' +
+      'Kirim input generate:',
+      mainKeyboard()
+    );
+  } else if (data === 'gen_multi_amount') {
+    clearState(userId);
+    setState(userId, 'CREATE_GENERATE', { credentials: null });
+    await reply(chatId,
+      '6️⃣ *Multiple Voucher Amount* — beberapa nominal sekaligus, pisahkan dengan spasi\n\n' +
+      '📋 Format:\n`<mode> <branch> <len> <startDay> <startMonth> - <endDay> <endMonth> <year> <minSales> <amount1>-<qty1> <amount2>-<qty2> "<notes>"`\n\n' +
+      '📝 Contoh:\n`single bsb 30 1 3 - 18 3 2026 0 10000-15 20000-12 "Promo Testing"`\n`multiple bsb 30 1 3 - 18 3 2026 0 10000-15 20000-12 "Promo Testing"`\n\n' +
+      'Kirim input generate:',
+      mainKeyboard()
+    );
+  } else if (data === 'gen_multi_branch') {
+    clearState(userId);
+    setState(userId, 'CREATE_GENERATE', { credentials: null });
+    await reply(chatId,
+      '7️⃣ *Multiple Branches* — pisahkan setiap branch dengan ` | `\n\n' +
+      '📋 Format:\n`<cmd1> | <cmd2>`\n\n' +
+      '📝 Contoh:\n`single ven "VO" 30 1 4 - 30 4 2026 0 5000-10 "Testing" | multiple ideo 30 1 4 - 30 4 2026 0 5000-10 "Testing"`\n\n' +
+      'Credentials di-resolve otomatis per branch dari alias input.\n\n' +
+      'Kirim input generate:',
+      mainKeyboard()
+    );
+  } else if (data === 'activate_file') {
     if (isProcessing) {
       await reply(chatId, '⏳ *Proses sedang berjalan*\n\nSaat ini: ' + esc(currentProcess) + '\nMohon tunggu.', mainKeyboard());
       return;

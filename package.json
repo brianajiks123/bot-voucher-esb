@@ -10,7 +10,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "archiver": "^7.0.1",
     "dotenv": "^16.6.1",
+    "exceljs": "^4.4.0",
     "winston": "^3.17.0"
   }
 }

@@ -77,7 +77,7 @@ pm2 startup
 | Command | Description |
 |---|---|
 | `/start` | Show bot info and available commands |
-| `/create` | Upload new vouchers via Excel file |
+| `/create` | Upload new vouchers — via Excel file or generate from input |
 | `/activate` | Activate vouchers — via Excel file or input voucher codes |
 | `/check` | Check voucher info by code |
 | `/extend` | Extend voucher expiry date |
@@ -98,10 +98,36 @@ All commands that require branch selection will prompt you to pick a branch firs
 
 ### Create voucher
 
-1. Send `/create`
-2. Select branch
-3. Send `.xlsx` or `.xls` file
-4. Bot uploads to ESB ERP and sends a result report
+Send `/create` — bot presents two options via inline keyboard:
+
+**Option A — Via File Excel:**
+1. Select branch
+2. Send `.xlsx` or `.xls` file
+3. Bot uploads to ESB ERP and sends a result report
+
+**Option B — Generate:**
+1. Select generate mode (7 options)
+2. Send generate input string per the format shown
+3. Bot generates Excel files, uploads per branch, and sends a `.zip` of all generated files
+
+**Generate modes:**
+
+| # | Mode | Description |
+|---|------|-------------|
+| 1 | Single Mode | One file for the entire period |
+| 2 | Multiple Mode | One file per date |
+| 3 | Custom Prefix | Custom voucher code prefix |
+| 4 | Custom Branch | Custom "Can Use on Branch" value |
+| 5 | Custom Prefix + Branch | Combination of custom prefix and custom branch |
+| 6 | Multiple Voucher Amount | Multiple voucher amounts in one input |
+| 7 | Multiple Branches | Multiple branches separated by ` \| ` |
+
+**Generate input format:**
+```
+<mode> <branch> ["prefix"] <len> <startDay> <startMonth> - <endDay> <endMonth> <year> <minSales> <amount>-<qty> "<notes>"
+```
+
+Branch aliases: `ideo`, `ven`, `bsb`, `gom`, `plb`
 
 ---
 

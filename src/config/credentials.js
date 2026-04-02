@@ -1,4 +1,3 @@
-/** Normalize user input to a canonical branch key */
 function resolveBranchKey(input) {
   const s = input.trim().toLowerCase();
   if (s === 'ideologist' || s === 'ideologis+' || s === 'ideo') return 'ideologist';
@@ -9,7 +8,6 @@ function resolveBranchKey(input) {
   return null;
 }
 
-/** Human-readable branch name shown in ERP (branch field value) */
 const BRANCH_DISPLAY = {
   ideologist:      'IDEOLOGIS+',
   maari_ventura:   'MAARI VENTURA',
@@ -18,7 +16,6 @@ const BRANCH_DISPLAY = {
   burgas_pleburan: 'BURJO NGEGAS PLEBURAN',
 };
 
-/** Credential category per branch */
 const BRANCH_CRED_GROUP = {
   ideologist:      'imvb',
   maari_ventura:   'imvb',
@@ -27,7 +24,6 @@ const BRANCH_CRED_GROUP = {
   burgas_pleburan: 'burgas',
 };
 
-/** Credential sets */
 const CRED_SETS = {
   imvb: {
     username: process.env.IMVB_USERNAME || '',
@@ -39,17 +35,12 @@ const CRED_SETS = {
   },
 };
 
-/**
- * Resolve credentials for a given branch key.
- * Returns { username, password } or null if branch unknown.
- */
 function getCredentialsForBranch(branchKey) {
   const group = BRANCH_CRED_GROUP[branchKey];
   if (!group) return null;
   return CRED_SETS[group];
 }
 
-/** List of valid branch input names for user-facing hint */
 const BRANCH_LIST =
   '🏪 IDEOLOGIS+ (IDEO)\n' +
   '🏪 MAARI VENTURA (VENTURA)\n' +
@@ -62,4 +53,5 @@ module.exports = {
   BRANCH_DISPLAY,
   getCredentialsForBranch,
   BRANCH_LIST,
+  CRED_SETS,
 };

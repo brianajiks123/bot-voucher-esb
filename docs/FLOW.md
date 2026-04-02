@@ -4,15 +4,16 @@
 
 Telegram bot that interacts with ESB ERP via the `esb-voucher-upload-activation` orchestrator.
 
-| Command     | Description                                              |
-|-------------|----------------------------------------------------------|
-| `/create`   | Upload new vouchers via Excel file                       |
-| `/activate` | Activate vouchers — via Excel file or input voucher codes |
-| `/check`    | Check voucher info by code                               |
-| `/extend`   | Extend voucher expiry date                               |
-| `/delete`   | Delete vouchers                                          |
-| `/status`   | Check bot status                                         |
-| `/help`     | Show usage guide                                         |
+| Command     | Description                                                        |
+|-------------|--------------------------------------------------------------------|
+| `/start`    | Show bot info and available commands                               |
+| `/create`   | Upload new vouchers — via Excel file or generate from input        |
+| `/activate` | Activate vouchers — via Excel file or input voucher codes          |
+| `/check`    | Check voucher info by code                                         |
+| `/extend`   | Extend voucher expiry date                                         |
+| `/delete`   | Delete vouchers                                                    |
+| `/status`   | Check bot status                                                   |
+| `/help`     | Show usage guide                                                   |
 
 ---
 
@@ -32,10 +33,10 @@ node index.js
 
 ## Branch Selection Flow
 
-All commands (except `/status` and `/help`) require branch selection before proceeding.
+Commands `/activate`, `/check`, `/extend`, `/delete`, and `/create` (Via File Excel) require branch selection before proceeding.
 
 ```
-User sends command (e.g. /create, /activate, /check, /extend, /delete)
+User sends command
       │
       ▼
 askBranch() → setState: { mode: 'BRANCH_SELECT', pendingMode, pendingData }
@@ -68,25 +69,77 @@ Resume pending flow with resolved credentials
 User sends /create
       │
       ▼
-askBranch() → user selects branch
+Bot presents inline keyboard:
+  ┌─────────────────────┬──────────────┐
+  │  📁 Via File Excel  │  ⚡ Generate  │
+  └─────────────────────┴──────────────┘
       │
-      ▼
-setState: { mode: 'CREATE', credentials }
-Bot prompts: "Kirim file Excel..."
+      ├─ User taps "Via File Excel"
+      │       │
+      │       ▼
+      │   askBranch() → user selects branch
+      │       │
+      │       ▼
+      │   setState: { mode: 'CREATE', credentials }
+      │   Bot prompts: "Kirim file Excel..."
+      │       │
+      │       ▼
+      │   User sends .xlsx / .xls file
+      │       │
+      │       ▼
+      │   processVoucherUpload(mode: 'CREATE')
+      │     ├─ createTempFolder()
+      │     ├─ downloadTelegramFile()
+      │     ├─ voucherUploadOrchestrate()
+      │     ├─ sendUploadResultNotification()
+      │     ├─ sendErrorFileToTelegram()   ← if any file failed with error Excel
+      │     └─ deleteTempFolder()          ← always cleanup
       │
-      ▼
-User sends .xlsx / .xls file
-      │
-      ▼
-handleDocument() → processVoucherUpload(mode: 'CREATE')
-      │
-      ├─ createTempFolder()
-      ├─ downloadTelegramFile()
-      ├─ voucherUploadOrchestrate()   ← Login → navigate → upload → return results[]
-      ├─ sendUploadResultNotification()
-      ├─ sendErrorFileToTelegram()    ← If any file failed with error Excel
-      └─ deleteTempFolder()           ← Always cleanup
+      └─ User taps "Generate"
+              │
+              ▼
+          Bot presents generate mode keyboard (7 options)
+              │
+              ▼
+          setState: { mode: 'CREATE_GENERATE', credentials: null }
+          Bot prompts: format instructions per selected mode
+              │
+              ▼
+          User sends generate input string
+              │
+              ▼
+          processGenerate()
+            ├─ generateVouchers(text, baseDir)   ← generate Excel files + zip
+            ├─ For each branch folder:
+            │     ├─ resolveBranchKey() → getCredentialsForBranch()
+            │     └─ voucherUploadOrchestrate(mode: 'CREATE')
+            ├─ sendDocument(zipPath)              ← send .zip to user
+            └─ cleanup: delete baseDir + zip      ← always in finally block
 ```
+
+### Generate Modes
+
+| # | Mode                  | Description                                              |
+|---|-----------------------|----------------------------------------------------------|
+| 1 | Single Mode           | One file for the entire period                           |
+| 2 | Multiple Mode         | One file per date                                        |
+| 3 | Custom Prefix         | Custom voucher code prefix (quoted, before length)       |
+| 4 | Custom Branch         | Custom "Can Use on Branch" value (quoted, after mode)    |
+| 5 | Custom Prefix + Branch| Combination of custom prefix and custom branch           |
+| 6 | Multiple Amount       | Multiple voucher amounts in one input                    |
+| 7 | Multiple Branches     | Multiple branches separated by ` \| `                   |
+
+**Generate input format:**
+```
+<mode> <branch> ["prefix"] <len> <startDay> <startMonth> - <endDay> <endMonth> <year> <minSales> <amount>-<qty> "<notes>"
+```
+
+**Custom Branch format** (quoted string replaces branch alias):
+```
+<mode> "<branch1>, <branch2>" ["prefix"] <len> ... "<notes>"
+```
+
+Credentials are resolved automatically per branch from the alias in the input. For Custom Branch, the first alias is used for folder/code generation; all aliases are resolved to full names joined by ` | ` in the "Can Use on Branch (s)" column.
 
 ---
 
@@ -115,7 +168,6 @@ Bot presents inline keyboard:
       │       │
       │       ▼
       │   processVoucherUpload(mode: 'ACTIVATE')
-      │   (same flow as CREATE)
       │
       └─ User taps "Input Kode Voucher"
               │
@@ -134,24 +186,10 @@ Bot presents inline keyboard:
               │
               ▼
           activateVoucherByCodes(credentials, codes, purpose='voucher', date)
-              │
-              ▼
-          For each code:
-            1. checkVoucherByCode() — get current status
-            2. Status != 'available' → record { reason: 'not_available', status }
-            3. Status == 'available' → activateVoucherByCode()
-                  ├─ Filter table → check checkbox → click btnActivate
-                  ├─ Modal: fill Purpose (Select2) + Date to Activate
-                  └─ Click Save → waitForNavigation
-              │
-              ▼
-          Reply with per-voucher result summary
-
-Notes:
-  - Sending a file while in ACTIVATE_CODE mode → rejected
-  - Sending plain text while in ACTIVATE (file) mode → rejected
-  - Purpose is hardcoded as 'voucher' (not user-facing)
-  - Date defaults to today if not provided
+              └─ For each code:
+                   1. checkVoucherByCode() — get current status
+                   2. Status != 'available' → record { reason: 'not_available', status }
+                   3. Status == 'available' → activateVoucherByCode()
 ```
 
 ---
@@ -166,7 +204,6 @@ askBranch() → user selects branch
       │
       ▼
 setState: { mode: 'CHECK', credentials }
-Bot prompts: "Kirim kode voucher..."
       │
       ▼
 User sends voucher codes (comma-separated)
@@ -180,89 +217,64 @@ processVoucherCheck() → checkVoucherCodes() → reply per voucher
 ## EXTEND Flow
 
 ```
-Option A — Inline:
-  /extend KODE1, KODE2
-  /extend KODE1, KODE2 | DD-MM-YYYY
-        │
-        ▼
-  extractInlineData() → askBranch() → processExtend()
-
-Option B — Two-step:
-  /extend → askBranch() → user selects branch
-        │
-        ▼
-  setState: { mode: 'EXTEND', credentials }
-  Bot prompts: format instructions
-        │
-        ▼
-  User sends: KODE1, KODE2  or  KODE1, KODE2 | DD-MM-YYYY
-        │
-        ▼
-  processExtend()
-
-processExtend():
-  ├─ parseCodesAndDate() — codes required, date optional (default: today)
-  ├─ extendVoucherCodes(credentials, codes, date)
-  │     └─ For each code:
-  │           1. Filter table by voucher code
-  │           2. Check row checkbox
-  │           3. Look for btnUpdate
-  │              ├─ NOT found → { found: true, buttonAvailable: false, status }
-  │              └─ Found → fill new end date → confirm → { success: true }
-  └─ Reply with per-voucher result summary
-        OK | TIDAK DITEMUKAN | TIDAK DAPAT DIPROSES (status: X) | GAGAL
+/extend → askBranch() → user selects branch
+      │
+      ▼
+setState: { mode: 'EXTEND', credentials }
+      │
+      ▼
+User sends: KODE1, KODE2  or  KODE1, KODE2 | DD-MM-YYYY
+      │
+      ▼
+processExtend() → extendVoucherCodes(credentials, codes, date)
 ```
+
+Also supports inline: `/extend KODE1, KODE2 | DD-MM-YYYY` → `extractInlineData()` → `askBranch()` → `processExtend()`
+
+Date is optional — defaults to today.
 
 ---
 
 ## DELETE Flow
 
 ```
-Option A — Inline:
-  /delete KODE1, KODE2
-  /delete KODE1, KODE2 | DD-MM-YYYY
-        │
-        ▼
-  extractInlineData() → askBranch() → processDelete()
-
-Option B — Two-step:
-  /delete → askBranch() → user selects branch
-        │
-        ▼
-  setState: { mode: 'DELETE', credentials }
-  Bot prompts: format instructions
-        │
-        ▼
-  User sends: KODE1, KODE2  or  KODE1, KODE2 | DD-MM-YYYY
-        │
-        ▼
-  processDelete()
-
-processDelete():
-  ├─ parseCodesAndDate() — codes required, date optional (default: today)
-  ├─ deleteVoucherCodes(credentials, codes, date)
-  │     └─ For each code:
-  │           1. Filter table by voucher code
-  │           2. Check row checkbox
-  │           3. Look for btnDelete
-  │              ├─ NOT found → { found: true, buttonAvailable: false, status }
-  │              └─ Found → modal: Purpose (Select2) + Journal Date → Process
-  └─ Reply with per-voucher result summary
-        OK | TIDAK DITEMUKAN | TIDAK DAPAT DIPROSES (status: X) | GAGAL
+/delete → askBranch() → user selects branch
+      │
+      ▼
+setState: { mode: 'DELETE', credentials }
+      │
+      ▼
+User sends: KODE1, KODE2  or  KODE1, KODE2 | DD-MM-YYYY
+      │
+      ▼
+processDelete() → deleteVoucherCodes(credentials, codes, date)
 ```
+
+Also supports inline: `/delete KODE1, KODE2 | DD-MM-YYYY`
+
+Date is optional — defaults to today.
 
 ---
 
 ## Callback Query Flow
 
 ```
-User taps inline keyboard button (e.g. activate options)
+User taps inline keyboard button
       │
       ▼
-handleCallbackQuery()
-      ├─ answerCallbackQuery()   ← Dismiss loading spinner
-      ├─ 'activate_file'  → askBranch(pendingMode: 'ACTIVATE')
-      └─ 'activate_code'  → askBranch(pendingMode: 'ACTIVATE_CODE')
+handleCallbackQuery() → answerCallbackQuery()
+      │
+      ├─ 'create_file'       → askBranch(pendingMode: 'CREATE')
+      ├─ 'create_generate'   → show generateModeKeyboard()
+      ├─ 'gen_single'        → setState CREATE_GENERATE, prompt format 1
+      ├─ 'gen_multiple'      → setState CREATE_GENERATE, prompt format 2
+      ├─ 'gen_prefix'        → setState CREATE_GENERATE, prompt format 3
+      ├─ 'gen_custom_branch' → setState CREATE_GENERATE, prompt format 4
+      ├─ 'gen_prefix_branch' → setState CREATE_GENERATE, prompt format 5
+      ├─ 'gen_multi_amount'  → setState CREATE_GENERATE, prompt format 6
+      ├─ 'gen_multi_branch'  → setState CREATE_GENERATE, prompt format 7
+      ├─ 'activate_file'     → askBranch(pendingMode: 'ACTIVATE')
+      └─ 'activate_code'     → askBranch(pendingMode: 'ACTIVATE_CODE')
 ```
 
 ---
@@ -284,10 +296,30 @@ Every bot response includes mainKeyboard() — persistent reply keyboard:
 
 ---
 
+## State Management
+
+| State                  | Triggered by                          | Waits for                    |
+|------------------------|---------------------------------------|------------------------------|
+| `BRANCH_SELECT`        | Any command needing branch            | Branch name text reply       |
+| `CREATE`               | After branch selected for /create     | Excel file upload            |
+| `CREATE_METHOD_SELECT` | /create command                       | Inline keyboard button tap   |
+| `CREATE_GENERATE`      | After generate mode selected          | Generate input text          |
+| `ACTIVATE`             | After branch selected (file option)   | Excel file upload            |
+| `ACTIVATE_CODE`        | After branch selected (code option)   | Voucher codes text           |
+| `ACTIVATE_METHOD_SELECT` | /activate command                   | Inline keyboard button tap   |
+| `CHECK`                | After branch selected for /check      | Voucher codes text           |
+| `EXTEND`               | After branch selected for /extend     | Codes (+ optional date) text |
+| `DELETE`               | After branch selected for /delete     | Codes (+ optional date) text |
+
+- All states expire after **5 minutes**
+- Only 1 process runs at a time (`isProcessing` flag)
+
+---
+
 ## Error Handling
 
 ```
-processVoucherUpload()
+processVoucherUpload() / processGenerate()
   ├─ Fatal error (login failed, network error)
   │     └─ sendFatalErrorNotification() with contextual hint
   └─ Per-file error
@@ -303,25 +335,12 @@ processExtend() / processDelete()
   ├─ Voucher not found         → TIDAK DITEMUKAN
   ├─ Button not available      → TIDAK DAPAT DIPROSES (status: X)
   └─ Unexpected error          → GAGAL with error message
+
+processGenerate()
+  ├─ Parse error               → ❌ Generate gagal (format tidak valid)
+  ├─ Per-branch upload error   → ⚠️ Upload <branch> gagal (process continues)
+  └─ Temp files always deleted in finally block
 ```
-
----
-
-## State Management
-
-| State               | Triggered by                        | Waits for                          |
-|---------------------|-------------------------------------|------------------------------------|
-| `BRANCH_SELECT`     | Any command needing branch          | Branch name text reply             |
-| `CREATE`            | After branch selected for /create   | Excel file upload                  |
-| `ACTIVATE`          | After branch selected (file option) | Excel file upload                  |
-| `ACTIVATE_CODE`     | After branch selected (code option) | Voucher codes text                 |
-| `CHECK`             | After branch selected for /check    | Voucher codes text                 |
-| `EXTEND`            | After branch selected for /extend   | Codes (+ optional date) text       |
-| `DELETE`            | After branch selected for /delete   | Codes (+ optional date) text       |
-| `ACTIVATE_METHOD_SELECT` | /activate command              | Inline keyboard button tap         |
-
-- All states expire after **5 minutes**
-- Only 1 upload/activate/extend/delete process runs at a time (`isProcessing` flag)
 
 ---
 
