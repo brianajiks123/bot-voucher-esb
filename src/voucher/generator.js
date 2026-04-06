@@ -47,6 +47,30 @@ function generateDateRange(startDay, startMonth, endDay, endMonth, year) {
   return dates;
 }
 
+const MAX_CODE_LENGTH = 20;
+
+/**
+ * Build a voucher code that fits within MAX_CODE_LENGTH characters.
+ * Fixed parts: amountK + monthCode + 2 random letters + 4 random numbers = ~9-10 chars
+ * Remaining budget is split between prefix and branchCode (truncated if needed).
+ */
+function buildVoucherCode(voucherPrefix, amountK, monthCode, branchCode) {
+  const fixedPart   = amountK + monthCode + randomLetters(2) + randomNumbers(4);
+  const budget      = MAX_CODE_LENGTH - fixedPart.length;
+
+  // Reserve at least 2 chars for branchCode, rest goes to prefix
+  const branchMax   = Math.min(branchCode.length, Math.max(2, Math.floor(budget / 2)));
+  const prefixMax   = budget - branchMax;
+
+  const pfx    = voucherPrefix.substring(0, Math.max(0, prefixMax));
+  const branch = branchCode.substring(0, branchMax);
+
+  const code = `${pfx}${amountK}${monthCode}${randomLetters(2)}${branch}${randomNumbers(4)}`;
+
+  // Safety: hard-truncate if still over limit (edge case)
+  return code.substring(0, MAX_CODE_LENGTH);
+}
+
 function buildVoucherRows(data, monthCode) {
   const { branchName, branchCode, voucherPrefix, voucherLength, minSales, vouchers, notes, canUseOnBranch } = data;
   const notesValue   = notes || `Voucher ${branchName}`;
@@ -57,7 +81,7 @@ function buildVoucherRows(data, monthCode) {
   vouchers.forEach((v) => {
     const amountK = Math.floor(v.amount / 1000) + 'K';
     for (let i = 0; i < v.quantity; i++) {
-      const code = `${voucherPrefix}${amountK}${monthCode}${randomLetters(2)}${branchCode}${randomNumbers(4)}`;
+      const code = buildVoucherCode(voucherPrefix, amountK, monthCode, branchCode);
       rows.push({
         no: rowNumber++, voucherType: 'Grand Total', voucherCode: code,
         branchName, voucherLength, minimumSales: minSales,
