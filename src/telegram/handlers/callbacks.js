@@ -8,17 +8,17 @@ const { askBranch } = require('./branch');
 const GENERATE_MODE_PROMPTS = {
   gen_single: {
     title: '1️⃣ *Single Mode* — satu file untuk seluruh periode',
-    format: '`single <branch> [prefix] <len> <startDay> <startMonth> - <endDay> <endMonth> <year> <minSales> <amount>-<qty> "<notes>"`',
+    format: '`single <branch> <len> <startDay> <startMonth> - <endDay> <endMonth> <year> <minSales> <amount>-<qty> "<notes>"`',
     example: '`single plb 30 1 4 - 30 4 2026 0 5000-10 "Testing"`',
   },
   gen_multiple: {
     title: '2️⃣ *Multiple Mode* — satu file per tanggal',
-    format: '`multiple <branch> [prefix] <len> <startDay> <startMonth> - <endDay> <endMonth> <year> <minSales> <amount>-<qty> "<notes>"`',
+    format: '`multiple <branch> <len> <startDay> <startMonth> - <endDay> <endMonth> <year> <minSales> <amount>-<qty> "<notes>"`',
     example: '`multiple ven 30 1 4 - 30 4 2026 0 5000-10 "Testing"`',
   },
   gen_prefix: {
     title: '3️⃣ *Custom Prefix* — tambahkan prefix kustom di dalam tanda kutip sebelum panjang kode',
-    format: '`single <branch> "PREFIX" <len> <startDay> <startMonth> - <endDay> <endMonth> <year> <minSales> <amount>-<qty> "<notes>"`',
+    format: '`<mode> <branch> "PREFIX" <len> <startDay> <startMonth> - <endDay> <endMonth> <year> <minSales> <amount>-<qty> "<notes>"`',
     example: '`single gom "VO" 30 1 4 - 30 4 2026 0 5000-10 "Testing"`\n`multiple gom "VO" 30 1 4 - 30 4 2026 0 5000-10 "Testing"`',
   },
   gen_custom_branch: {
