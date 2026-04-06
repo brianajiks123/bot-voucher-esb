@@ -6,7 +6,7 @@ const VOUCHER_COLUMNS = [
   { header: 'Voucher Code',          key: 'voucherCode',      width: 25 },
   { header: 'Branch Name',           key: 'branchName',       width: 25 },
   { header: 'Voucher Length',        key: 'voucherLength',    width: 15 },
-  { header: 'Minimum Sales Amount',  key: 'minimumSales',     width: 20 },
+  { header: 'Minimun Sales Amount',  key: 'minimumSales',     width: 20 },
   { header: 'Voucher Amount',        key: 'voucherAmount',    width: 15 },
   { header: 'Voucher Sales Price',   key: 'voucherSalesPrice',width: 20 },
   { header: 'Notes',                 key: 'notes',            width: 30 },
