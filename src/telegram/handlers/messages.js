@@ -46,7 +46,7 @@ async function handleMessage(message) {
         await processDelete(chatId, userId, rawText, state.credentials);
         return;
       case 'CREATE_GENERATE':
-        await processGenerate(chatId, userId, rawText, state.credentials);
+        await processGenerate(chatId, userId, rawText, state.credentials, state.allowPrefix);
         return;
       case 'GENERATE_CONFIRM':
         await handleGenerateConfirm(chatId, userId, rawText, state);

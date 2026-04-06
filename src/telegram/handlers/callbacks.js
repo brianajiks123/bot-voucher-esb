@@ -39,7 +39,7 @@ const GENERATE_MODE_PROMPTS = {
   gen_multi_branch: {
     title: '7️⃣ *Multiple Branches* — pisahkan setiap branch dengan ` | `\n\nCredentials di-resolve otomatis per branch dari alias input.',
     format: '`<cmd1> | <cmd2>`',
-    example: '`single ven "VO" 30 1 4 - 30 4 2026 0 5000-10 "Testing" | multiple ideo 30 1 4 - 30 4 2026 0 5000-10 "Testing"`',
+    example: '`single ven 30 1 4 - 30 4 2026 0 5000-10 "Testing" | multiple ideo 30 1 4 - 30 4 2026 0 5000-10 "Testing"`',
   },
 };
 
@@ -65,7 +65,8 @@ async function handleCallbackQuery(callbackQuery) {
 
   } else if (Object.keys(GENERATE_MODE_PROMPTS).includes(data)) {
     clearState(userId);
-    setState(userId, 'CREATE_GENERATE', { credentials: null });
+    const allowPrefix = data === 'gen_prefix' || data === 'gen_prefix_branch';
+    setState(userId, 'CREATE_GENERATE', { credentials: null, allowPrefix });
     const p = GENERATE_MODE_PROMPTS[data];
     await reply(chatId,
       `${p.title}\n\n📋 Format:\n${p.format}\n\n📝 Contoh:\n${p.example}\n\nKirim input generate:`,

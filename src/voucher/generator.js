@@ -110,8 +110,8 @@ async function processMultiple(data, baseDir) {
 
 // ─── Main Entry ───────────────────────────────────────────────────────────────
 
-async function generateVouchers(input, baseDir) {
-  const { singleCommands, regularCommands } = parseGenerateInput(input);
+async function generateVouchers(input, baseDir, allowPrefix = false) {
+  const { singleCommands, regularCommands } = parseGenerateInput(input, allowPrefix);
   fs.mkdirSync(baseDir, { recursive: true });
 
   const summary = [];

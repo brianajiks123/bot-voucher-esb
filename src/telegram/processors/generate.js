@@ -74,7 +74,7 @@ async function uploadGenerateResults(chatId, baseDir, credentials) {
   }
 }
 
-async function processGenerate(chatId, userId, text, credentials) {
+async function processGenerate(chatId, userId, text, credentials, allowPrefix = false) {
   const { isProcessing, currentProcess } = getLockState();
   if (isProcessing) {
     await reply(chatId, `⏳ *Proses sedang berjalan*\n\nSaat ini: ${esc(currentProcess)}\nMohon tunggu.`, mainKeyboard());
@@ -89,7 +89,7 @@ async function processGenerate(chatId, userId, text, credentials) {
   let zipPath = null;
 
   try {
-    const result = await generateVouchers(text, baseDir);
+    const result = await generateVouchers(text, baseDir, allowPrefix);
     zipPath = result.zipPath;
 
     await reply(chatId,

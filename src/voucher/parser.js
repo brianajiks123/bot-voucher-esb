@@ -44,7 +44,7 @@ function generateBranchCode(branchName) {
   return words[words.length - 1].substring(0, 3).toUpperCase();
 }
 
-function parseEntry(input) {
+function parseEntry(input, allowPrefix = false) {
   const quotedMatches = [...input.matchAll(/"([^"]+)"/g)];
   const isCustomBranch = /^(\w+)\s+"([^"]+)"/.test(input);
 
@@ -58,11 +58,21 @@ function parseEntry(input) {
 
   if (isCustomBranch) {
     customBranch = quotedMatches[0][1];
-    if (quotedMatches.length >= 3)     { voucherPrefix = quotedMatches[1][1]; notes = quotedMatches[quotedMatches.length - 1][1]; }
-    else if (quotedMatches.length === 2) { notes = quotedMatches[1][1]; }
+    if (allowPrefix) {
+      if (quotedMatches.length >= 3)      { voucherPrefix = quotedMatches[1][1]; notes = quotedMatches[quotedMatches.length - 1][1]; }
+      else if (quotedMatches.length === 2) { notes = quotedMatches[1][1]; }
+    } else {
+      // ignore any extra quoted strings as prefix, treat last quoted as notes
+      if (quotedMatches.length >= 2) { notes = quotedMatches[quotedMatches.length - 1][1]; }
+    }
   } else {
-    if (quotedMatches.length >= 2)     { voucherPrefix = quotedMatches[0][1]; notes = quotedMatches[quotedMatches.length - 1][1]; }
-    else if (quotedMatches.length === 1) { notes = quotedMatches[0][1]; }
+    if (allowPrefix) {
+      if (quotedMatches.length >= 2)      { voucherPrefix = quotedMatches[0][1]; notes = quotedMatches[quotedMatches.length - 1][1]; }
+      else if (quotedMatches.length === 1) { notes = quotedMatches[0][1]; }
+    } else {
+      // ignore any quoted string that would be a prefix, only last quoted is notes
+      if (quotedMatches.length >= 1) { notes = quotedMatches[quotedMatches.length - 1][1]; }
+    }
   }
 
   const tokens = clean.split(/\s+/);
@@ -110,13 +120,13 @@ function parseVoucherAmounts(tokens) {
   return vouchers;
 }
 
-function parseGenerateInput(input) {
+function parseGenerateInput(input, allowPrefix = false) {
   const entries = input.split('|').map((s) => s.trim()).filter(Boolean);
   const singleCommands  = [];
   const regularCommands = [];
 
   for (const entry of entries) {
-    const parsed = parseEntry(entry);
+    const parsed = parseEntry(entry, allowPrefix);
     if (!parsed) throw new Error(`Format tidak valid: "${entry}"`);
     if (parsed.mode === 'single') singleCommands.push(parsed);
     else regularCommands.push(parsed);
