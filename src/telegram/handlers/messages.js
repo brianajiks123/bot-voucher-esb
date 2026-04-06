@@ -7,7 +7,7 @@ const { processActivateByCode } = require('../processors/activate');
 const { processVoucherCheck } = require('../processors/check');
 const { processExtend } = require('../processors/extend');
 const { processDelete } = require('../processors/delete');
-const { processGenerate } = require('../processors/generate');
+const { processGenerate, handleGenerateConfirm } = require('../processors/generate');
 const { reply } = require('../helpers');
 const { mainKeyboard } = require('../keyboard');
 
@@ -47,6 +47,9 @@ async function handleMessage(message) {
         return;
       case 'CREATE_GENERATE':
         await processGenerate(chatId, userId, rawText, state.credentials);
+        return;
+      case 'GENERATE_CONFIRM':
+        await handleGenerateConfirm(chatId, userId, rawText, state);
         return;
     }
   }
