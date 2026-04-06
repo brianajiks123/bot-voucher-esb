@@ -15,7 +15,7 @@ async function sendStartNotification(chatId) {
 📤 /create — Upload voucher baru ke ERP ESB
 ✅ /activate — Aktivasi voucher via file excel
 🔍 /check — Cek info voucher berdasarkan kode
-📅 /extend — Perpanjang tanggal kadaluarsa voucher
+📅 /extend — Perpanjang masa berlaku voucher
 🗑️ /delete — Hapus voucher
 📊 /status — Cek status bot
 ❓ /help — Panduan`;
