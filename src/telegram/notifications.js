@@ -12,13 +12,13 @@ async function sendStartNotification(chatId) {
 🤖 Status: Bot is running and ready!
 
 *Available commands:*
-📤 /create — Upload new vouchers to ESB ERP
-✅ /activate — Activate vouchers via Excel file
-🔍 /check — Check voucher info by code
-📅 /extend — Extend voucher expiry date
-🗑️ /delete — Delete voucher
-📊 /status — Check bot status
-❓ /help — Usage guide`;
+📤 /create — Upload voucher baru ke ERP ESB
+✅ /activate — Aktivasi voucher via file excel
+🔍 /check — Cek info voucher berdasarkan kode
+📅 /extend — Perpanjang tanggal kadaluarsa voucher
+🗑️ /delete — Hapus voucher
+📊 /status — Cek status bot
+❓ /help — Panduan`;
 
   return sendMessage(message, chatId || undefined, mainKeyboard());
 }
