@@ -59,7 +59,7 @@ async function handleHelp(chatId) {
     '      Bot generate Excel, upload ke ESB ERP,\n' +
     '      lalu kirim file .zip hasil generate ke Anda\n\n' +
     '⚡ *Format Generate (/create → Generate):*\n' +
-    '`[mode] [branch] [panjang] [tgl awal] [bln awal] - [tgl akhir] [bln akhir] [tahun] [min sales] [nominal-qty] "Notes"`\n\n' +
+    '`[mode] [branch] [length] [start date] [start month] - [end date] [end month] [year] [min. sales] [amount-qty] "Notes"`\n\n' +
     '1️⃣ Single — satu file untuk seluruh periode\n' +
     '   `single plb 30 1 4 - 30 4 2026 0 5000-10 "Testing"`\n' +
     '2️⃣ Multiple — satu file per tanggal\n' +
