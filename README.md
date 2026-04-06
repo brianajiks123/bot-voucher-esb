@@ -88,11 +88,11 @@ pm2 startup
 All commands that require branch selection will prompt you to pick a branch first.
 
 **Available branches:**
-- IDEOLOGIS+ (IDEO)
-- MAARI VENTURA (VENTURA)
-- MAARI BSB (BSB)
-- BURJO NGEGAS GOMBEL (BURGAS GOMBEL)
-- BURJO NGEGAS PLEBURAN (BURGAS PLEBURAN)
+- IDEOLOGIS+ — alias: `ideo`
+- MAARI VENTURA — alias: `ven`, `ventura`
+- MAARI BSB — alias: `bsb`
+- BURJO NGEGAS GOMBEL — alias: `gom`, `burgas gombel`
+- BURJO NGEGAS PLEBURAN — alias: `plb`, `burgas pleburan`
 
 ---
 

@@ -47,13 +47,13 @@ Manages multi-branch credential resolution:
 
 Supported branches and their credential groups:
 
-| Branch Key        | Display Name          | Credential Group |
-|-------------------|-----------------------|------------------|
-| `ideologist`      | IDEOLOGIS+            | IMVB             |
-| `maari_ventura`   | MAARI VENTURA         | IMVB             |
-| `maari_bsb`       | MAARI BSB             | IMVB             |
-| `burgas_gombel`   | BURJO NGEGAS GOMBEL   | BURGAS           |
-| `burgas_pleburan` | BURJO NGEGAS PLEBURAN | BURGAS           |
+| Branch Key        | Display Name          | Aliases                    | Credential Group |
+|-------------------|-----------------------|----------------------------|------------------|
+| `ideologist`      | IDEOLOGIS+            | ideo, ideologis+           | IMVB             |
+| `maari_ventura`   | MAARI VENTURA         | ven, ventura               | IMVB             |
+| `maari_bsb`       | MAARI BSB             | bsb                        | IMVB             |
+| `burgas_gombel`   | BURJO NGEGAS GOMBEL   | gom, burgas gombel         | BURGAS           |
+| `burgas_pleburan` | BURJO NGEGAS PLEBURAN | plb, burgas pleburan       | BURGAS           |
 
 ### `src/telegram/telegramClient.js`
 HTTP wrapper for the Telegram Bot API using the native `https` module:
@@ -140,6 +140,7 @@ Voucher Excel generator:
 | 7 | Multiple Branches     | Multiple branches separated by ` \| `                       |
 
 Branch aliases used in generator input: `ven`, `bsb`, `gom`, `plb`, `ideo`
+Full names are also accepted (e.g. `maari ventura`, `burjo ngegas gombel`).
 
 ### `src/utils/tempFiles.js`
 - `createTempFolder(userId, mode)` — creates `files/tmp/<timestamp>-<userId>-<mode>/`

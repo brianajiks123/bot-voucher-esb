@@ -269,7 +269,8 @@ async function handleHelp(chatId) {
     '   b. Generate: pilih tipe → pilih branch → kirim data\n' +
     '      Bot generate Excel, upload ke ESB ERP,\n' +
     '      lalu kirim file .zip hasil generate ke Anda\n\n' +
-    '⚡ *Tipe Generate (/create → Generate):*\n' +
+    '⚡ *Format Generate (/create → Generate):*\n' +
+    '`[mode] [branch] [panjang] [tgl awal] [bln awal] - [tgl akhir] [bln akhir] [tahun] [min sales] [nominal-qty] "Notes"`\n\n' +
     '1️⃣ Single — satu file untuk seluruh periode\n' +
     '   `single plb 30 1 4 - 30 4 2026 0 5000-10 "Testing"`\n' +
     '2️⃣ Multiple — satu file per tanggal\n' +
@@ -281,7 +282,7 @@ async function handleHelp(chatId) {
     '5️⃣ Custom Prefix + Branch — gabungan prefix & custom branch\n' +
     '   `single "gom, plb" "VO" 30 1 4 - 30 4 2026 0 5000-10 "Testing"`\n' +
     '6️⃣ Multiple Amount — beberapa nominal, pisah spasi\n' +
-    '   `single bsb 30 1 3 - 18 3 2026 0 10000-15 20000-12 "Promo"`\n' +
+    '   `single bsb 30 1 4 - 30 4 2026 0 10000-15 20000-12 "Promo"`\n' +
     '7️⃣ Multiple Branches — pisahkan dengan ` | `\n' +
     '   `single ven "VO" 30 1 4 - 30 4 2026 0 5000-10 "Test" | multiple ideo 30 1 4 - 30 4 2026 0 5000-10 "Test"`\n\n' +
     '✅ *Aktivasi Voucher (/activate) — 2 opsi:*\n' +
@@ -298,7 +299,9 @@ async function handleHelp(chatId) {
     '🗑️ *Hapus Voucher (/delete):*\n' +
     '1. Kirim /delete → pilih branch → kirim kode\n' +
     '   Format: KODE1, KODE2 atau KODE1, KODE2 | DD-MM-YYYY\n\n' +
-    '🏪 *Branch alias:* ven | bsb | gom | plb | ideo\n\n' +
+    '🏪 *Branch alias yang valid:*\n' +
+    'ideo | ven | bsb | gom | plb\n' +
+    'burgas gombel | burgas pleburan\n\n' +
     '🏪 *Branch yang tersedia:*\n' + BRANCH_LIST + '\n\n' +
     '📌 *Catatan:*\n' +
     '- Hanya 1 proses berjalan bersamaan\n' +

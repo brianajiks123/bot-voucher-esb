@@ -53,13 +53,13 @@ Resume pending flow with resolved credentials
 
 **Supported branches:**
 
-| Input           | Branch Display        | Credential Group |
-|-----------------|-----------------------|------------------|
-| IDEO            | IDEOLOGIS+            | IMVB             |
-| VENTURA         | MAARI VENTURA         | IMVB             |
-| BSB             | MAARI BSB             | IMVB             |
-| BURGAS GOMBEL   | BURJO NGEGAS GOMBEL   | BURGAS           |
-| BURGAS PLEBURAN | BURJO NGEGAS PLEBURAN | BURGAS           |
+| Input                        | Branch Display        | Credential Group |
+|------------------------------|-----------------------|------------------|
+| IDEO                         | IDEOLOGIS+            | IMVB             |
+| VEN, VENTURA                 | MAARI VENTURA         | IMVB             |
+| BSB                          | MAARI BSB             | IMVB             |
+| GOM, BURGAS GOMBEL           | BURJO NGEGAS GOMBEL   | BURGAS           |
+| PLB, BURGAS PLEBURAN         | BURJO NGEGAS PLEBURAN | BURGAS           |
 
 ---
 

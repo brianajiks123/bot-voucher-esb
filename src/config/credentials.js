@@ -1,10 +1,10 @@
 function resolveBranchKey(input) {
   const s = input.trim().toLowerCase();
   if (s === 'ideologist' || s === 'ideologis+' || s === 'ideo') return 'ideologist';
-  if (s === 'maari ventura' || s === 'ventura') return 'maari_ventura';
+  if (s === 'maari ventura' || s === 'ventura' || s === 'ven') return 'maari_ventura';
   if (s === 'maari bsb' || s === 'bsb') return 'maari_bsb';
-  if (s === 'burjo ngegas gombel' || s === 'burgas gombel') return 'burgas_gombel';
-  if (s === 'burjo ngegas pleburan' || s === 'burgas pleburan') return 'burgas_pleburan';
+  if (s === 'burjo ngegas gombel' || s === 'burgas gombel' || s === 'gom') return 'burgas_gombel';
+  if (s === 'burjo ngegas pleburan' || s === 'burgas pleburan' || s === 'plb') return 'burgas_pleburan';
   return null;
 }
 
