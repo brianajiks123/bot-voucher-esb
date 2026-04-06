@@ -68,8 +68,8 @@ function parseEntry(input) {
   const tokens = clean.split(/\s+/);
 
   if (isCustomBranch) {
-    if (tokens.length < 10) return null;
-    const [mode, , voucherLength, startDay, startMonthNum, , endDay, endMonthNum, year, minSales, ...rest] = tokens;
+    if (tokens.length < 9) return null;
+    const [mode, voucherLength, startDay, startMonthNum, , endDay, endMonthNum, year, minSales, ...rest] = tokens;
     const vouchers = parseVoucherAmounts(rest);
     if (vouchers.length === 0) return null;
 

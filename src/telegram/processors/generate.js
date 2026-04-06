@@ -3,7 +3,7 @@ const fs = require('fs');
 const os = require('os');
 const logger = require('../../utils/logger');
 const { reply, esc } = require('../helpers');
-const { setState, clearState, onStateExpire } = require('../state');
+const { setState, clearState } = require('../state');
 const { mainKeyboard } = require('../keyboard');
 const { acquireLock, releaseLock, getLockState } = require('../processingState');
 const { sendUploadResultNotification, sendErrorFileToTelegram } = require('../notifications');
@@ -11,13 +11,32 @@ const { sendDocument } = require('../telegramClient');
 const { generateVouchers } = require('../../voucher/generator');
 const { resolveBranchKey, getCredentialsForBranch } = require('../../config/credentials');
 
-const CONFIRM_TTL_MS = 2 * 60 * 1000; // 2 menit untuk konfirmasi upload
+const CONFIRM_TTL_MS = 2 * 60 * 1000; // 2 minutes confirmation
+
+const confirmTimers = new Map();
 
 function cleanupGenerateTempFiles(baseDir, zipPath) {
   try {
     if (baseDir && fs.existsSync(baseDir)) fs.rmSync(baseDir, { recursive: true, force: true });
     if (zipPath && fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
   } catch (_) {}
+}
+
+function cancelConfirmTimer(userId) {
+  const timer = confirmTimers.get(userId);
+  if (timer) { clearTimeout(timer); confirmTimers.delete(userId); }
+}
+
+function scheduleConfirmTimeout(chatId, userId, baseDir, zipPath) {
+  cancelConfirmTimer(userId);
+  const timer = setTimeout(() => {
+    confirmTimers.delete(userId);
+    clearState(userId);
+    cleanupGenerateTempFiles(baseDir, zipPath);
+    logger.info(`Generate confirm timeout for user ${userId}, temp files cleaned up.`);
+    reply(chatId, '⏱️ Waktu konfirmasi habis. Upload dibatalkan dan file temp telah dihapus.', mainKeyboard());
+  }, CONFIRM_TTL_MS);
+  confirmTimers.set(userId, timer);
 }
 
 async function uploadGenerateResults(chatId, baseDir, credentials) {
@@ -78,15 +97,8 @@ async function processGenerate(chatId, userId, text, credentials) {
     );
     await sendDocument(zipPath, chatId, 'Hasil generate voucher');
 
-    // Simpan context di state, lalu tanya user
     setState(userId, 'GENERATE_CONFIRM', { baseDir, zipPath, credentials }, CONFIRM_TTL_MS);
-
-    // Cleanup otomatis jika user tidak menjawab sampai timeout
-    onStateExpire(userId, (expiredState) => {
-      cleanupGenerateTempFiles(expiredState.baseDir, expiredState.zipPath);
-      logger.info(`Generate confirm timeout for user ${userId}, temp files cleaned up.`);
-      reply(chatId, '⏱️ Waktu konfirmasi habis. Upload dibatalkan dan file temp telah dihapus.', mainKeyboard());
-    });
+    scheduleConfirmTimeout(chatId, userId, baseDir, zipPath);
 
     await reply(chatId,
       '❓ *Upload ke ESB ERP?*\n\nApakah file ini perlu diupload ke ESB ERP sekarang?\n\nBalas *ya* untuk upload atau *tidak* untuk lewati.\n⏱️ Konfirmasi kedaluwarsa dalam 2 menit.',
@@ -102,6 +114,7 @@ async function processGenerate(chatId, userId, text, credentials) {
 }
 
 async function handleGenerateConfirm(chatId, userId, text, state) {
+  cancelConfirmTimer(userId);
   clearState(userId);
   const { baseDir, zipPath, credentials } = state;
   const answer = text.trim().toLowerCase();
@@ -130,9 +143,15 @@ async function handleGenerateConfirm(chatId, userId, text, state) {
     cleanupGenerateTempFiles(baseDir, zipPath);
     await reply(chatId, '✅ Upload dilewati. File temp telah dihapus.', mainKeyboard());
   } else {
-    // Jawaban tidak dikenali, kembalikan state agar user bisa jawab lagi
-    setState(userId, 'GENERATE_CONFIRM', { baseDir, zipPath, credentials, expiresAt: state.expiresAt });
-    await reply(chatId, '❓ Balas *ya* untuk upload ke ESB ERP atau *tidak* untuk lewati.');
+    const remaining = state.expiresAt - Date.now();
+    if (remaining > 0) {
+      setState(userId, 'GENERATE_CONFIRM', { baseDir, zipPath, credentials }, remaining);
+      scheduleConfirmTimeout(chatId, userId, baseDir, zipPath);
+      await reply(chatId, '❓ Balas *ya* untuk upload ke ESB ERP atau *tidak* untuk lewati.');
+    } else {
+      cleanupGenerateTempFiles(baseDir, zipPath);
+      await reply(chatId, '⏱️ Waktu konfirmasi habis. Upload dibatalkan dan file temp telah dihapus.', mainKeyboard());
+    }
   }
 }
 
