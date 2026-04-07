@@ -22,11 +22,13 @@ Telegram bot that interacts with ESB ERP via the `esb-voucher-upload-activation`
 ```
 node index.js
       │
-      └─ startBot()
+      └─ startBot()                    ← bot.js
             ├─ validateToken()
             ├─ setMyCommands()         ← Register command menu (⊞ button)
             ├─ sendStartNotification() ← Single startup message to Telegram
             └─ getUpdates() loop       ← Long polling for messages + callback_query
+                  ├─ update.message        → handleMessage()   (handlers/messages.js)
+                  └─ update.callback_query → handleCallbackQuery() (handlers/callbacks.js)
 ```
 
 ---
@@ -262,7 +264,7 @@ Date is optional — defaults to today.
 User taps inline keyboard button
       │
       ▼
-handleCallbackQuery() → answerCallbackQuery()
+handlers/callbacks.js → answerCallbackQuery()
       │
       ├─ 'create_file'       → askBranch(pendingMode: 'CREATE')
       ├─ 'create_generate'   → show generateModeKeyboard()
@@ -298,45 +300,45 @@ Every bot response includes mainKeyboard() — persistent reply keyboard:
 
 ## State Management
 
-| State                  | Triggered by                          | Waits for                    |
-|------------------------|---------------------------------------|------------------------------|
-| `BRANCH_SELECT`        | Any command needing branch            | Branch name text reply       |
-| `CREATE`               | After branch selected for /create     | Excel file upload            |
-| `CREATE_METHOD_SELECT` | /create command                       | Inline keyboard button tap   |
-| `CREATE_GENERATE`      | After generate mode selected          | Generate input text          |
-| `ACTIVATE`             | After branch selected (file option)   | Excel file upload            |
-| `ACTIVATE_CODE`        | After branch selected (code option)   | Voucher codes text           |
-| `ACTIVATE_METHOD_SELECT` | /activate command                   | Inline keyboard button tap   |
-| `CHECK`                | After branch selected for /check      | Voucher codes text           |
-| `EXTEND`               | After branch selected for /extend     | Codes (+ optional date) text |
-| `DELETE`               | After branch selected for /delete     | Codes (+ optional date) text |
+| State                    | Triggered by                          | Waits for                    |
+|--------------------------|---------------------------------------|------------------------------|
+| `BRANCH_SELECT`          | Any command needing branch            | Branch name text reply       |
+| `CREATE`                 | After branch selected for /create     | Excel file upload            |
+| `CREATE_METHOD_SELECT`   | /create command                       | Inline keyboard button tap   |
+| `CREATE_GENERATE`        | After generate mode selected          | Generate input text          |
+| `ACTIVATE`               | After branch selected (file option)   | Excel file upload            |
+| `ACTIVATE_CODE`          | After branch selected (code option)   | Voucher codes text           |
+| `ACTIVATE_METHOD_SELECT` | /activate command                     | Inline keyboard button tap   |
+| `CHECK`                  | After branch selected for /check      | Voucher codes text           |
+| `EXTEND`                 | After branch selected for /extend     | Codes (+ optional date) text |
+| `DELETE`                 | After branch selected for /delete     | Codes (+ optional date) text |
 
-- All states expire after **5 minutes**
-- Only 1 process runs at a time (`isProcessing` flag)
+- All states expire after **5 minutes** (managed by `state.js`)
+- Only 1 process runs at a time (managed by `processingState.js`)
 
 ---
 
 ## Error Handling
 
 ```
-processVoucherUpload() / processGenerate()
+processors/upload.js / processors/generate.js
   ├─ Fatal error (login failed, network error)
   │     └─ sendFatalErrorNotification() with contextual hint
   └─ Per-file error
         └─ Recorded as ✗ Failed, process continues to next file
 
-processActivateByCode()
+processors/activate.js
   ├─ Voucher not found         → TIDAK DITEMUKAN
   ├─ Status != available       → TIDAK DAPAT DIPROSES (status: X)
   ├─ Button not available      → TIDAK DAPAT DIPROSES (tombol tidak tersedia)
   └─ Unexpected error          → GAGAL with error message
 
-processExtend() / processDelete()
+processors/extend.js / processors/delete.js
   ├─ Voucher not found         → TIDAK DITEMUKAN
   ├─ Button not available      → TIDAK DAPAT DIPROSES (status: X)
   └─ Unexpected error          → GAGAL with error message
 
-processGenerate()
+processors/generate.js
   ├─ Parse error               → ❌ Generate gagal (format tidak valid)
   ├─ Per-branch upload error   → ⚠️ Upload <branch> gagal (process continues)
   └─ Temp files always deleted in finally block

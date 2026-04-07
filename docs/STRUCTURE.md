@@ -12,26 +12,46 @@ bot-voucher-esb/
 │   └── error.log             # Error logs only (auto-generated)
 ├── src/
 │   ├── config/
-│   │   └── credentials.js        # Branch-to-credential mapping, branch resolution
+│   │   └── credentials.js        # Branch-to-credential mapping and alias resolution
 │   ├── telegram/
-│   │   ├── telegramClient.js     # HTTP client to Telegram API
+│   │   ├── handlers/
+│   │   │   ├── branch.js         # Branch selection reply handler
+│   │   │   ├── callbacks.js      # Inline keyboard callback handler
+│   │   │   ├── commands.js       # Command handlers (/create, /activate, etc.)
+│   │   │   ├── document.js       # File upload handler (validates extension, mode)
+│   │   │   └── messages.js       # Main message router
+│   │   ├── processors/
+│   │   │   ├── activate.js       # processActivateByCode()
+│   │   │   ├── check.js          # processVoucherCheck()
+│   │   │   ├── delete.js         # processDelete()
+│   │   │   ├── extend.js         # processExtend()
+│   │   │   ├── generate.js       # processGenerate()
+│   │   │   ├── upload.js         # processVoucherUpload()
+│   │   │   └── voucherResult.js  # Result report formatting
+│   │   ├── bot.js                # Polling loop entry point
+│   │   ├── helpers.js            # Shared helpers (parseCodesAndDate, extractInlineData)
+│   │   ├── keyboard.js           # Reply and inline keyboard layouts
 │   │   ├── notifications.js      # Notification message templates
-│   │   ├── keyboard.js           # Reply keyboard and inline keyboard layouts
-│   │   └── bot.js                # Polling loop, command handlers, state management, flow processors
+│   │   ├── processingState.js    # Global process lock (acquireLock / releaseLock)
+│   │   ├── state.js              # Per-user state with 5-minute TTL
+│   │   └── telegramClient.js     # Telegram API HTTP client with retry logic
 │   ├── voucher/
-│   │   └── generator.js          # Voucher Excel generator (7 modes) + ZIP compression
+│   │   ├── excel.js              # ExcelJS workbook creation (Voucher + Activator sheets)
+│   │   ├── generator.js          # Voucher generator entry point (7 modes) + ZIP
+│   │   ├── parser.js             # Input string parser for generate commands
+│   │   └── zip.js                # ZIP compression utility (archiver)
 │   └── utils/
-│       ├── logger.js             # Winston logger (WIB timezone, file + console)
 │       ├── delay.js              # Promise-based delay helper
-│       └── tempFiles.js          # Manages temp folders & downloads files from Telegram
-├── .env                      # Environment variables
+│       ├── logger.js             # Winston logger (WIB timezone, file + console)
+│       └── tempFiles.js          # Temp folder management and Telegram file downloads
+├── .env                      # Environment variables (not committed)
 ├── .env.example              # Environment variables template
 ├── ecosystem.config.js       # PM2 process configuration
-├── .gitignore
 ├── index.js                  # Entry point
-├── package.json
-└── README.md
+└── package.json
 ```
+
+---
 
 ## Module Descriptions
 
@@ -55,6 +75,30 @@ Supported branches and their credential groups:
 | `burgas_gombel`   | BURJO NGEGAS GOMBEL   | gom, burgas gombel         | BURGAS           |
 | `burgas_pleburan` | BURJO NGEGAS PLEBURAN | plb, burgas pleburan       | BURGAS           |
 
+---
+
+### `src/telegram/bot.js`
+Polling loop entry point. Calls `validateToken()`, `setMyCommands()`, `sendStartNotification()`, then runs the `getUpdates()` loop — routing each update to `handleMessage()` or `handleCallbackQuery()`.
+
+### `src/telegram/helpers.js`
+Shared parsing utilities used across processors and handlers:
+- `parseCodesAndDate(text)` — parses `KODE1, KODE2` or `KODE1, KODE2 | DD-MM-YYYY`; date defaults to today
+- `parseCodesForActivate(text)` — same as above, used for activate-by-code flow
+- `extractInlineData(rawText)` — extracts data after command for inline usage (e.g. `/extend CODE | DATE`)
+
+### `src/telegram/state.js`
+Per-user state management with 5-minute TTL:
+- `setState(userId, mode, extra)` — sets state with expiry
+- `getState(userId)` — returns state or `null` if expired
+- `clearState(userId)` — removes state immediately
+- `onStateExpire(userId, callback)` — registers a callback fired on state expiry
+
+### `src/telegram/processingState.js`
+Global process lock — ensures only 1 operation runs at a time:
+- `acquireLock(label)` — returns `false` if already locked
+- `releaseLock()` — releases the lock
+- `getLockState()` — returns `{ isProcessing, currentProcess }`
+
 ### `src/telegram/telegramClient.js`
 HTTP wrapper for the Telegram Bot API using the native `https` module:
 - `sendMessage(text, chatId, replyMarkup)` — with retry + exponential backoff (3x, 2s/4s/8s)
@@ -72,7 +116,7 @@ HTTP wrapper for the Telegram Bot API using the native `https` module:
 - `activateOptionsKeyboard()` — inline keyboard for `/activate` method selection:
   - `📁 Via File Excel` → `callback_data: 'activate_file'`
   - `🔑 Input Kode Voucher` → `callback_data: 'activate_code'`
-- `generateModeKeyboard()` — inline keyboard with 7 generate mode options (gen_single … gen_multi_branch)
+- `generateModeKeyboard()` — inline keyboard with 7 generate mode options (`gen_single` … `gen_multi_branch`)
 
 ### `src/telegram/notifications.js`
 Message templates:
@@ -81,70 +125,79 @@ Message templates:
 - `sendFatalErrorNotification` — fatal error with contextual hint (login, network, etc.)
 - `sendErrorFileToTelegram` — sends the ESB error Excel file to the user
 
-### `src/telegram/bot.js`
-Core bot logic:
+---
 
-**State management** — per-user waiting state with 5-minute TTL:
+### `src/telegram/handlers/messages.js`
+Main message router. Dispatches incoming messages to the appropriate handler based on type (command, document, branch reply, or text input). Rejects plain text when mode expects a file.
 
-| Mode                     | Description                                      |
-|--------------------------|--------------------------------------------------|
-| `BRANCH_SELECT`          | Waiting for branch name reply                    |
-| `CREATE`                 | Waiting for Excel file (create mode)             |
-| `CREATE_METHOD_SELECT`   | Waiting for inline keyboard tap (/create)        |
-| `CREATE_GENERATE`        | Waiting for generate input text                  |
-| `ACTIVATE`               | Waiting for Excel file (activate mode)           |
-| `ACTIVATE_CODE`          | Waiting for voucher codes (code-based activate)  |
-| `ACTIVATE_METHOD_SELECT` | Waiting for inline keyboard tap (/activate)      |
-| `CHECK`                  | Waiting for voucher codes to check               |
-| `EXTEND`                 | Waiting for codes (+ optional date)              |
-| `DELETE`                 | Waiting for codes (+ optional date)              |
+### `src/telegram/handlers/commands.js`
+Handles all bot commands: `/start`, `/create`, `/activate`, `/check`, `/extend`, `/delete`, `/status`, `/help`. Calls `askBranch()` or sets state as needed.
 
-**Helper parsers:**
-- `parseCodesAndDate(text)` — parses `KODE1, KODE2` or `KODE1, KODE2 | DD-MM-YYYY`; date defaults to today
-- `parseCodesForActivate(text)` — same as above, used for activate-by-code flow
-- `extractInlineData(rawText)` — extracts data after command for inline usage (e.g. `/extend CODE | DATE`)
+### `src/telegram/handlers/branch.js`
+Handles branch name text replies when state is `BRANCH_SELECT`. Calls `resolveBranchKey()` → `getCredentialsForBranch()` then resumes the pending flow.
 
-**Command handlers:** `/start`, `/create`, `/activate`, `/check`, `/extend`, `/delete`, `/status`, `/help`
+### `src/telegram/handlers/document.js`
+Handles file uploads. Validates extension (`.xlsx` / `.xls`). Rejects file if current mode is `ACTIVATE_CODE`.
 
-**Flow processors:**
-- `processVoucherUpload` — downloads file to temp folder, calls orchestrator, sends result, cleans up
-- `processGenerate` — generates Excel files + ZIP, uploads per branch, sends ZIP to user, cleans up
-- `processActivateByCode` — checks status per code, activates if available, sends result report
-- `processVoucherCheck` — calls `checkVoucherCodes`, replies per voucher
-- `processExtend` — calls `extendVoucherCodes`, replies with summary
-- `processDelete` — calls `deleteVoucherCodes`, replies with summary
+### `src/telegram/handlers/callbacks.js`
+Handles all inline keyboard button taps. Calls `answerCallbackQuery()` then routes to the appropriate state or processor based on `callback_data`.
 
-**Handlers:**
-- `handleDocument` — validates file extension; rejects file if in `ACTIVATE_CODE` mode
-- `handleCallbackQuery` — handles all inline button taps
-- `handleMessage` — main message router; rejects plain text in `ACTIVATE` (file) mode
+---
 
-**Process locking:** `isProcessing` flag ensures only 1 upload/activate/extend/delete runs at a time.
+### `src/telegram/processors/upload.js`
+`processVoucherUpload(mode)` — downloads file to temp folder, calls `voucherUploadOrchestrate()`, sends result notification, sends error Excel if any, then cleans up temp folder.
+
+### `src/telegram/processors/generate.js`
+`processGenerate(text)` — calls `generateVouchers()`, uploads per branch, sends `.zip` to user, cleans up. Always deletes temp files in `finally` block.
+
+### `src/telegram/processors/activate.js`
+`processActivateByCode(credentials, codes, date)` — for each code: checks status via `checkVoucherByCode()`, activates if `available`, records reason if not.
+
+### `src/telegram/processors/check.js`
+`processVoucherCheck(credentials, codes)` — calls `checkVoucherCodes()`, replies per voucher.
+
+### `src/telegram/processors/extend.js`
+`processExtend(credentials, codes, date)` — calls `extendVoucherCodes()`, replies with summary.
+
+### `src/telegram/processors/delete.js`
+`processDelete(credentials, codes, date)` — calls `deleteVoucherCodes()`, replies with summary.
+
+### `src/telegram/processors/voucherResult.js`
+Formats result report messages for upload and activate operations.
+
+---
 
 ### `src/voucher/generator.js`
-Voucher Excel generator:
-- `generateVouchers(input, baseDir)` — parse input, generate Excel files per branch, compress to `.zip`
-- Generates two sheets per file: **Voucher** and **Activator**
-- Voucher code format: `{PREFIX}{AMOUNT_K}{MONTH_CODE}{2_LETTERS}{BRANCH_CODE}{4_NUMBERS}`
+Entry point for voucher generation. Calls `parseGenerateInput()`, generates Excel files per branch via `writeVoucherWorkbook()`, then compresses to `.zip` via `compressToZip()`.
+
+Voucher code format: `{PREFIX}{AMOUNT_K}{MONTH_CODE}{2_LETTERS}{BRANCH_CODE}{4_NUMBERS}` (max 20 chars)
 
 **Supported generation modes:**
 
-| # | Mode                  | Description                                                  |
-|---|-----------------------|--------------------------------------------------------------|
-| 1 | Single Mode           | One file for the entire period                               |
-| 2 | Multiple Mode         | One file per date                                            |
-| 3 | Custom Prefix         | Custom voucher code prefix (quoted string)                   |
-| 4 | Custom Branch         | Custom "Can Use on Branch" value (quoted string)             |
-| 5 | Custom Prefix + Branch| Combination of custom prefix and custom branch               |
-| 6 | Multiple Amount       | Multiple voucher amounts in one input                        |
-| 7 | Multiple Branches     | Multiple branches separated by ` \| `                       |
+| # | Mode                   | Description                                              |
+|---|------------------------|----------------------------------------------------------|
+| 1 | Single Mode            | One file for the entire period                           |
+| 2 | Multiple Mode          | One file per date                                        |
+| 3 | Custom Prefix          | Custom voucher code prefix (quoted string)               |
+| 4 | Custom Branch          | Custom "Can Use on Branch" value (quoted string)         |
+| 5 | Custom Prefix + Branch | Combination of custom prefix and custom branch           |
+| 6 | Multiple Amount        | Multiple voucher amounts in one input                    |
+| 7 | Multiple Branches      | Multiple branches separated by ` \| `                   |
 
-Branch aliases used in generator input: `ven`, `bsb`, `gom`, `plb`, `ideo`
-Full names are also accepted (e.g. `maari ventura`, `burjo ngegas gombel`).
+### `src/voucher/parser.js`
+Parses the generate input string into a structured object. Handles all 7 modes, quoted strings for prefix/branch, date ranges, and multi-amount/multi-branch variants.
+
+### `src/voucher/excel.js`
+Creates ExcelJS workbooks with two sheets per file: **Voucher** and **Activator**. Handles column formatting and data population.
+
+### `src/voucher/zip.js`
+`compressToZip(sourceDir, outputPath)` — compresses a directory into a `.zip` file using `archiver`.
+
+---
 
 ### `src/utils/tempFiles.js`
 - `createTempFolder(userId, mode)` — creates `files/tmp/<timestamp>-<userId>-<mode>/`
-- `deleteTempFolder(folderPath)` — removes folder and contents after processing
+- `deleteTempFolder(folderPath)` — removes folder and all contents after processing
 - `downloadTelegramFile(botToken, fileId, fileName, destFolder)` — resolves file path via `getFile` API then downloads
 
 ### `src/utils/logger.js`
@@ -155,6 +208,8 @@ Winston logger with WIB timezone (UTC+7), outputs to console (non-production) an
 
 ### `src/utils/delay.js`
 `delay(ms)` — Promise-based delay with a debug log entry.
+
+---
 
 ## Dependency on Sibling Project
 

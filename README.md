@@ -49,7 +49,7 @@ LOG_LEVEL=debug
 NODE_ENV=development
 ```
 
-`SHOW_BROWSER=true` shows the browser window during automation. `false` runs headless (default).
+`SHOW_BROWSER=true` shows the browser window during automation. `false` runs headless.
 
 ## 5. Running Bot
 
@@ -88,11 +88,14 @@ pm2 startup
 All commands that require branch selection will prompt you to pick a branch first.
 
 **Available branches:**
-- IDEOLOGIS+ — alias: `ideo`
-- MAARI VENTURA — alias: `ven`, `ventura`
-- MAARI BSB — alias: `bsb`
-- BURJO NGEGAS GOMBEL — alias: `gom`, `burgas gombel`
-- BURJO NGEGAS PLEBURAN — alias: `plb`, `burgas pleburan`
+
+| Branch | Aliases |
+|---|---|
+| IDEOLOGIS+ | `ideo`, `ideologis+` |
+| MAARI VENTURA | `ven`, `ventura` |
+| MAARI BSB | `bsb` |
+| BURJO NGEGAS GOMBEL | `gom`, `burgas gombel` |
+| BURJO NGEGAS PLEBURAN | `plb`, `burgas pleburan` |
 
 ---
 
@@ -116,8 +119,8 @@ Send `/create` — bot presents two options via inline keyboard:
 |---|------|-------------|
 | 1 | Single Mode | One file for the entire period |
 | 2 | Multiple Mode | One file per date |
-| 3 | Custom Prefix | Custom voucher code prefix |
-| 4 | Custom Branch | Custom "Can Use on Branch" value |
+| 3 | Custom Prefix | Custom voucher code prefix (quoted string) |
+| 4 | Custom Branch | Custom "Can Use on Branch" value (quoted string) |
 | 5 | Custom Prefix + Branch | Combination of custom prefix and custom branch |
 | 6 | Multiple Voucher Amount | Multiple voucher amounts in one input |
 | 7 | Multiple Branches | Multiple branches separated by ` \| ` |
@@ -128,6 +131,10 @@ Send `/create` — bot presents two options via inline keyboard:
 ```
 
 Branch aliases: `ideo`, `ven`, `bsb`, `gom`, `plb`
+
+**Voucher code format:** `{PREFIX}{AMOUNT_K}{MONTH_CODE}{2_LETTERS}{BRANCH_CODE}{4_NUMBERS}` (max 20 chars)
+
+Each generated file contains two sheets: **Voucher** and **Activator**.
 
 ---
 
@@ -209,9 +216,12 @@ If the Delete button is not available, bot replies with the current voucher stat
 
 ## 7. Notes
 
-- Only 1 process can run at a time
+
+- Only 1 process can run at a time (global lock via `processingState.js`)
 - Session expires in **5 minutes** after sending the command
-- Temp files are automatically deleted after processing
+- Temp files are automatically deleted after processing (even on error)
+- Retry on upload: max **2x**, delay `attempt × 5000ms`
+- Both projects must exist in the same parent directory — `esb-voucher-upload-activation` is used as a library, not a separate process
 
 ## 8. Logs
 
@@ -219,6 +229,8 @@ If the Delete button is not available, bot replies with the current voucher stat
 tail -f logs/combined.log
 tail -f logs/error.log
 ```
+
+Log level is configurable via `LOG_LEVEL` env var (default: `debug`). All timestamps are in WIB (UTC+7).
 
 ## 9. Telegram Group Setup
 
@@ -233,5 +245,5 @@ The bot supports group chats. `message.chat.id` and `message.from.id` are handle
 
 ## Documentation
 
-- [`docs/FLOW.md`](docs/FLOW.md) — process flow
-- [`docs/STRUCTURE.md`](docs/STRUCTURE.md) — project structure
+- [`docs/FLOW.md`](docs/FLOW.md) — detailed process flow for all commands and state transitions
+- [`docs/STRUCTURE.md`](docs/STRUCTURE.md) — full module descriptions and architecture
