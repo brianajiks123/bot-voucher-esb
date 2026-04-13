@@ -31,14 +31,18 @@ async function processDelete(chatId, userId, text, credentials) {
     const failed  = results.filter((r) => !r.success);
     const icon = failed.length === 0 ? '✅ Selesai' : success.length === 0 ? '❌ Gagal' : '⚠️ Sebagian';
 
-    let msg = `${icon} - *Hapus Voucher*\n\n`;
-    msg += `📅 Waktu: ${new Date().toLocaleString('id-ID')}\n`;
-    msg += `📊 Total: ${results.length} | ✅ Berhasil: ${success.length} | ❌ Gagal: ${failed.length}\n\n`;
-    msg += '─────────────────────\n';
-    for (const r of results) {
-      msg += `${esc(formatVoucherResult(r, 'Berhasil dihapus'))}\n`;
+    await reply(chatId,
+      `${icon} - *Hapus Voucher*\n\n` +
+      `📅 Waktu: ${new Date().toLocaleString('id-ID')}\n` +
+      `📊 Total: ${results.length} | ✅ Berhasil: ${success.length} | ❌ Gagal: ${failed.length}`
+    );
+
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i];
+      const isLast = i === results.length - 1;
+      const kb = isLast ? mainKeyboard() : null;
+      await reply(chatId, esc(formatVoucherResult(r, 'Berhasil dihapus')), kb);
     }
-    await reply(chatId, msg.trim(), mainKeyboard());
   } catch (err) {
     logger.error(`Delete error: ${err.message}`);
     await reply(chatId, `❌ *Gagal menghapus voucher*\n\n${esc(err.message)}`, mainKeyboard());
