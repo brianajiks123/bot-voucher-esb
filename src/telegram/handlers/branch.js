@@ -52,7 +52,7 @@ async function handleBranchReply(chatId, userId, text, state) {
   } else if (pendingMode === 'CHECK') {
     setState(userId, 'CHECK', { branchKey, credentials });
     await reply(chatId,
-      `🔍 *Cek Voucher* - ${esc(branchDisplay)}\n\nKirim kode voucher. Pisahkan dengan koma jika lebih dari satu.\n\n📋 Contoh: VOUCHER01, VOUCHER02\n\n⏱️ Sesi kedaluwarsa dalam 5 menit.`,
+      `🔍 *Cek Voucher* - ${esc(branchDisplay)}\n\nKirim kode voucher. Pisahkan dengan koma jika lebih dari satu.\n⚠️ Maksimal *100 kode* per request.\n\n📋 Contoh: VOUCHER01, VOUCHER02\n\n⏱️ Sesi kedaluwarsa dalam 5 menit.`,
       mainKeyboard()
     );
   } else if (pendingMode === 'EXTEND') {

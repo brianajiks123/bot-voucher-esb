@@ -2,9 +2,6 @@ const { sendMessage, sendDocument } = require('./telegramClient');
 const { mainKeyboard } = require('./keyboard');
 const logger = require('../utils/logger');
 
-/**
- * Sent to the configured chat when the bot process starts.
- */
 async function sendStartNotification(chatId) {
   const message = `🚀 *Voucher Bot Started*
 
@@ -23,16 +20,10 @@ async function sendStartNotification(chatId) {
   return sendMessage(message, chatId || undefined, mainKeyboard());
 }
 
-/**
- * Escape special legacy Markdown characters in dynamic text.
- */
 function escapeMd(text) {
   return String(text).replace(/[_*`[]/g, (c) => '\\' + c);
 }
 
-/**
- * Sent after an upload job finishes, with a per-file result summary.
- */
 async function sendUploadResultNotification(chatId, mode, results) {
   try {
     const success = results.filter((r) => r.status.includes('Success'));
@@ -51,7 +42,6 @@ async function sendUploadResultNotification(chatId, mode, results) {
       message += `\n${i + 1}. ${icon} \`${escapeMd(r.file)}\``;
 
       if (r.message && !r.status.includes('Success')) {
-        // Format multiline error detail (e.g. "Upload errors:\nRow 2 [CODE]:\n  1. msg")
         const lines = r.message.split('\n').map((l) => l.trim()).filter(Boolean);
         lines.forEach((line) => {
           message += `\n   ${escapeMd(line)}`;
@@ -74,10 +64,6 @@ async function sendUploadResultNotification(chatId, mode, results) {
   }
 }
 
-/**
- * Sent when a fatal error occurs before any file is processed.
- * Includes a contextual hint based on the error message.
- */
 async function sendFatalErrorNotification(chatId, mode, errorMessage) {
   const modeLabel = mode === 'CREATE' ? 'Create Voucher' : 'Activate Voucher';
 
@@ -95,10 +81,6 @@ async function sendFatalErrorNotification(chatId, mode, errorMessage) {
   return sendMessage(message, chatId, mainKeyboard());
 }
 
-/**
- * Send the ESB error Excel file to Telegram so the user can download it.
- * Called after a failed upload when an error file is available.
- */
 async function sendErrorFileToTelegram(chatId, filePath, fileName) {
   try {
     const caption = `📎 *File Error ESB*\n\`${escapeMd(fileName)}\`\n\nFile ini berisi detail baris yang gagal diupload ke ESB ERP.`;

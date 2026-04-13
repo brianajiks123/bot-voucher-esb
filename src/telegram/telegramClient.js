@@ -6,7 +6,6 @@ const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const CHAT_ID   = process.env.TELEGRAM_CHAT_ID   || '';
 const MAX_MESSAGE_LENGTH = 4000;
 
-/** Returns true if both BOT_TOKEN and CHAT_ID are set */
 function isConfigured() {
   return BOT_TOKEN.length > 0 && CHAT_ID.length > 0;
 }
@@ -15,9 +14,6 @@ function getBotToken() {
   return BOT_TOKEN;
 }
 
-/**
- * Strip control characters, collapse whitespace, and truncate to MAX_MESSAGE_LENGTH.
- */
 function cleanMessage(message) {
   if (!message) return '';
   let cleaned = message
@@ -31,7 +27,6 @@ function cleanMessage(message) {
   return cleaned;
 }
 
-/** Low-level HTTPS POST to the Telegram Bot API */
 function httpPost(path, payload) {
   return new Promise((resolve) => {
     const data = JSON.stringify(payload);
@@ -63,19 +58,11 @@ function httpPost(path, payload) {
   });
 }
 
-/**
- * Returns true if the Telegram API error is transient and worth retrying.
- * Permanent errors (blocked, invalid token, deactivated user) are not retried.
- */
 function isRetryableError(description = '') {
   const permanent = ['bot was blocked', 'chat not found', 'user is deactivated', 'bot token', 'Unauthorized'];
   return !permanent.some((msg) => description.toLowerCase().includes(msg.toLowerCase()));
 }
 
-/**
- * Send a text message to a chat.
- * Retries up to `retries` times with exponential backoff: 2s, 4s, 8s.
- */
 async function sendMessage(text, chatId = CHAT_ID, replyMarkup = null, retries = 3) {
   if (!isConfigured()) {
     logger.warn('Telegram is not configured. Message not sent.');
@@ -107,18 +94,11 @@ async function sendMessage(text, chatId = CHAT_ID, replyMarkup = null, retries =
   return false;
 }
 
-/**
- * Answer a callback query (used with inline keyboards).
- */
 async function answerCallbackQuery(callbackQueryId, text = '') {
   const res = await httpPost(`/bot${BOT_TOKEN}/answerCallbackQuery`, { callback_query_id: callbackQueryId, text });
   return res.ok;
 }
 
-/**
- * Fetch pending updates via long polling.
- * Returns an empty array on any error so the polling loop can continue safely.
- */
 async function getUpdates(offset = 0) {
   if (!isConfigured()) return [];
 
@@ -158,9 +138,6 @@ async function getUpdates(offset = 0) {
   });
 }
 
-/**
- * Validate the bot token by calling getMe.
- */
 async function validateToken() {
   return new Promise((resolve) => {
     const options = {
@@ -180,9 +157,6 @@ async function validateToken() {
   });
 }
 
-/**
- * Register bot commands shown in the Telegram command menu (⊞ button).
- */
 async function setMyCommands(commands) {
   const res = await httpPost(`/bot${BOT_TOKEN}/setMyCommands`, { commands });
   if (res.ok) logger.info('Bot commands registered');
@@ -190,10 +164,6 @@ async function setMyCommands(commands) {
   return res.ok;
 }
 
-/**
- * Send a document (file) to a chat via multipart/form-data.
- * caption is optional text shown below the file.
- */
 async function sendDocument(filePath, chatId = CHAT_ID, caption = '') {
   if (!isConfigured()) {
     logger.warn('Telegram is not configured. Document not sent.');

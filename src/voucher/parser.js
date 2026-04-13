@@ -62,7 +62,6 @@ function parseEntry(input, allowPrefix = false) {
       if (quotedMatches.length >= 3)      { voucherPrefix = quotedMatches[1][1]; notes = quotedMatches[quotedMatches.length - 1][1]; }
       else if (quotedMatches.length === 2) { notes = quotedMatches[1][1]; }
     } else {
-      // ignore any extra quoted strings as prefix, treat last quoted as notes
       if (quotedMatches.length >= 2) { notes = quotedMatches[quotedMatches.length - 1][1]; }
     }
   } else {
@@ -70,7 +69,6 @@ function parseEntry(input, allowPrefix = false) {
       if (quotedMatches.length >= 2)      { voucherPrefix = quotedMatches[0][1]; notes = quotedMatches[quotedMatches.length - 1][1]; }
       else if (quotedMatches.length === 1) { notes = quotedMatches[0][1]; }
     } else {
-      // ignore any quoted string that would be a prefix, only last quoted is notes
       if (quotedMatches.length >= 1) { notes = quotedMatches[quotedMatches.length - 1][1]; }
     }
   }

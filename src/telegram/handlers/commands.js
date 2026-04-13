@@ -81,7 +81,8 @@ async function handleHelp(chatId) {
     '   b. Input Kode: pilih branch → kirim kode voucher\n' +
     '      Format: KODE1, KODE2 | DD-MM-YYYY (tanggal opsional)\n\n' +
     '🔍 *Cek Voucher (/check):*\n' +
-    '1. Kirim /check → pilih branch → kirim kode voucher\n\n' +
+    '1. Kirim /check → pilih branch → kirim kode voucher\n' +
+    '   ⚠️ Maksimal *100 kode* per request (pisahkan dengan koma)\n\n' +
     '📅 *Ubah Masa Berlaku Voucher (/extend):*\n' +
     '1. Kirim /extend → pilih branch → kirim kode\n' +
     '   Format: KODE1, KODE2 atau KODE1, KODE2 | DD-MM-YYYY\n\n' +

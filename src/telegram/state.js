@@ -1,7 +1,6 @@
 const STATE_TTL_MS = 5 * 60 * 1000;
 const userStates = new Map();
 
-// onExpire callbacks per userId: Map<userId, () => void>
 const expireCallbacks = new Map();
 
 function setState(userId, mode, extra, ttlMs) {
@@ -27,10 +26,6 @@ function clearState(userId) {
   userStates.delete(userId);
 }
 
-/**
- * Daftarkan callback yang dipanggil saat state userId expire.
- * Callback menerima state terakhir sebagai argumen.
- */
 function onStateExpire(userId, callback) {
   expireCallbacks.set(userId, callback);
 }

@@ -24,7 +24,6 @@ async function handleMessage(message) {
 
   const state = getState(userId);
 
-  // State-based routing
   if (state && rawText && !rawText.startsWith('/')) {
     switch (state.mode) {
       case 'BRANCH_SELECT':
@@ -54,7 +53,6 @@ async function handleMessage(message) {
     }
   }
 
-  // Command routing
   if (cmd.startsWith('/extend')) {
     await askBranch(chatId, userId, 'EXTEND', extractInlineData(rawText));
     return;

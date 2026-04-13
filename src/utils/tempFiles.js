@@ -5,10 +5,6 @@ const logger = require('./logger');
 
 const TEMP_BASE = path.resolve(__dirname, '../../files/tmp');
 
-/**
- * Create a unique temp folder for a user session.
- * Folder name: <timestamp>-<userId>-<mode>
- */
 async function createTempFolder(userId, mode) {
   const folderName = `${Date.now()}-${userId}-${mode}`;
   const folderPath = path.join(TEMP_BASE, folderName);
@@ -17,9 +13,6 @@ async function createTempFolder(userId, mode) {
   return folderPath;
 }
 
-/**
- * Delete a temp folder and all its contents.
- */
 async function deleteTempFolder(folderPath) {
   try {
     await fs.rm(folderPath, { recursive: true, force: true });
@@ -29,10 +22,6 @@ async function deleteTempFolder(folderPath) {
   }
 }
 
-/**
- * Download a file from Telegram and save it to the given temp folder.
- * Steps: getFile API → download via HTTPS → save to destFolder/fileName
- */
 async function downloadTelegramFile(botToken, fileId, fileName, destFolder) {
   const filePath = await getTelegramFilePath(botToken, fileId);
   const destPath = path.join(destFolder, fileName);
@@ -41,7 +30,6 @@ async function downloadTelegramFile(botToken, fileId, fileName, destFolder) {
   return destPath;
 }
 
-/** Resolve Telegram file_path from file_id via getFile API */
 function getTelegramFilePath(botToken, fileId) {
   return new Promise((resolve, reject) => {
     const options = {
@@ -69,7 +57,6 @@ function getTelegramFilePath(botToken, fileId) {
   });
 }
 
-/** Download a file from URL and write to destPath */
 function downloadFile(url, destPath) {
   return new Promise((resolve, reject) => {
     const file = require('fs').createWriteStream(destPath);

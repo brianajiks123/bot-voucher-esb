@@ -4,11 +4,23 @@ const { reply, esc } = require('../helpers');
 const { clearState } = require('../state');
 const { mainKeyboard } = require('../keyboard');
 
+const MAX_VOUCHER_PER_REQUEST = 100;
+
 async function processVoucherCheck(chatId, userId, text, credentials) {
   clearState(userId);
   const codes = text.split(',').map((c) => c.trim()).filter(Boolean);
   if (codes.length === 0) {
     await reply(chatId, '❌ Kode voucher tidak valid.', mainKeyboard());
+    return;
+  }
+
+  if (codes.length > MAX_VOUCHER_PER_REQUEST) {
+    await reply(chatId,
+      `⚠️ *Terlalu banyak kode voucher*\n\n` +
+      `Kamu mengirim *${codes.length} kode*, maksimal *${MAX_VOUCHER_PER_REQUEST} kode* per request.\n\n` +
+      `Silakan bagi menjadi beberapa batch dan kirim ulang.`,
+      mainKeyboard()
+    );
     return;
   }
 
@@ -25,7 +37,8 @@ async function processVoucherCheck(chatId, userId, text, credentials) {
       const kb = isLast ? mainKeyboard() : null;
 
       if (!r.found) {
-        await reply(chatId, `🔍 \`${esc(r.voucherCode)}\`\n❌ Voucher tidak ditemukan.`, kb);
+        const errNote = r.error ? `\n⚠️ _${esc(r.error)}_` : '';
+        await reply(chatId, `🔍 \`${esc(r.voucherCode)}\`\n❌ Voucher tidak ditemukan.${errNote}`, kb);
         continue;
       }
 
