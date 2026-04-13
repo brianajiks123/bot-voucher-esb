@@ -3,8 +3,7 @@ const logger = require('../../utils/logger');
 const { reply, esc } = require('../helpers');
 const { clearState } = require('../state');
 const { mainKeyboard } = require('../keyboard');
-
-const MAX_VOUCHER_PER_REQUEST = 100;
+const { replyIfLimitExceeded, MAX_VOUCHER_PER_REQUEST } = require('./voucherResult');
 
 async function processVoucherCheck(chatId, userId, text, credentials) {
   clearState(userId);
@@ -14,15 +13,7 @@ async function processVoucherCheck(chatId, userId, text, credentials) {
     return;
   }
 
-  if (codes.length > MAX_VOUCHER_PER_REQUEST) {
-    await reply(chatId,
-      `⚠️ *Terlalu banyak kode voucher*\n\n` +
-      `Kamu mengirim *${codes.length} kode*, maksimal *${MAX_VOUCHER_PER_REQUEST} kode* per request.\n\n` +
-      `Silakan bagi menjadi beberapa batch dan kirim ulang.`,
-      mainKeyboard()
-    );
-    return;
-  }
+  if (await replyIfLimitExceeded(chatId, codes, reply, mainKeyboard())) return;
 
   await reply(chatId, `🔍 Mencari ${codes.length} voucher...\nMohon tunggu.`);
   try {

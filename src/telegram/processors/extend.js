@@ -3,7 +3,7 @@ const logger = require('../../utils/logger');
 const { reply, esc, parseCodesAndDate } = require('../helpers');
 const { clearState } = require('../state');
 const { mainKeyboard } = require('../keyboard');
-const { formatVoucherResult } = require('./voucherResult');
+const { formatVoucherResult, replyIfLimitExceeded } = require('./voucherResult');
 
 async function processExtend(chatId, userId, text, credentials) {
   clearState(userId);
@@ -17,6 +17,8 @@ async function processExtend(chatId, userId, text, credentials) {
   }
 
   const { codes, date } = parsed;
+
+  if (await replyIfLimitExceeded(chatId, codes, reply, mainKeyboard())) return;
   await reply(chatId, `⏳ Memperpanjang ${codes.length} voucher hingga ${esc(date)}...\nMohon tunggu.`);
   logger.info(`Extend ${codes.length} voucher(s) -> ${date}`);
 

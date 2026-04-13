@@ -4,6 +4,7 @@ const { reply, esc, parseCodesForActivate } = require('../helpers');
 const { clearState } = require('../state');
 const { mainKeyboard } = require('../keyboard');
 const { acquireLock, releaseLock, getLockState } = require('../processingState');
+const { replyIfLimitExceeded } = require('./voucherResult');
 
 const ACTIVATE_PURPOSE = 'voucher';
 
@@ -19,6 +20,8 @@ async function processActivateByCode(chatId, userId, text, credentials) {
   }
 
   const { codes, date } = parsed;
+
+  if (await replyIfLimitExceeded(chatId, codes, reply, mainKeyboard())) return;
   const { isProcessing, currentProcess } = getLockState();
   if (isProcessing) {
     await reply(chatId, `⏳ *Proses sedang berjalan*\n\nSaat ini: ${esc(currentProcess)}\nMohon tunggu.`, mainKeyboard());

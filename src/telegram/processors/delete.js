@@ -3,7 +3,7 @@ const logger = require('../../utils/logger');
 const { reply, esc, parseCodesAndDate } = require('../helpers');
 const { clearState } = require('../state');
 const { mainKeyboard } = require('../keyboard');
-const { formatVoucherResult } = require('./voucherResult');
+const { formatVoucherResult, replyIfLimitExceeded } = require('./voucherResult');
 
 async function processDelete(chatId, userId, text, credentials) {
   clearState(userId);
@@ -17,6 +17,8 @@ async function processDelete(chatId, userId, text, credentials) {
   }
 
   const { codes, date } = parsed;
+
+  if (await replyIfLimitExceeded(chatId, codes, reply, mainKeyboard())) return;
   await reply(chatId, `⏳ Menghapus ${codes.length} voucher...\nMohon tunggu.`);
   logger.info(`Delete ${codes.length} voucher(s) | date: ${date}`);
 
