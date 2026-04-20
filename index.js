@@ -5,6 +5,7 @@
  *   /check    — Check voucher info by code
  *   /extend   — Extend voucher expiry date
  *   /delete   — Delete vouchers
+ *   /restore  - Restore vouchers
  *   /status   — Check bot status
  *   /help     — Show usage guide
  *
