@@ -14,6 +14,7 @@ async function sendStartNotification(chatId) {
 🔍 /check — Cek info voucher berdasarkan kode
 📅 /extend — Perpanjang masa berlaku voucher
 🗑️ /delete — Hapus voucher
+🔄 /restore — Restore voucher
 📊 /status — Cek status bot
 ❓ /help — Panduan`;
 

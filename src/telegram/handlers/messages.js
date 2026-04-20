@@ -7,6 +7,7 @@ const { processActivateByCode } = require('../processors/activate');
 const { processVoucherCheck } = require('../processors/check');
 const { processExtend } = require('../processors/extend');
 const { processDelete } = require('../processors/delete');
+const { processRestore } = require('../processors/restore');
 const { processGenerate, handleGenerateConfirm } = require('../processors/generate');
 const { reply } = require('../helpers');
 const { mainKeyboard } = require('../keyboard');
@@ -44,6 +45,9 @@ async function handleMessage(message) {
       case 'DELETE':
         await processDelete(chatId, userId, rawText, state.credentials);
         return;
+      case 'RESTORE':
+        await processRestore(chatId, userId, rawText, state.credentials);
+        return;
       case 'CREATE_GENERATE':
         await processGenerate(chatId, userId, rawText, state.credentials, state.allowPrefix);
         return;
@@ -59,6 +63,10 @@ async function handleMessage(message) {
   }
   if (cmd.startsWith('/delete')) {
     await askBranch(chatId, userId, 'DELETE', extractInlineData(rawText));
+    return;
+  }
+  if (cmd.startsWith('/restore')) {
+    await askBranch(chatId, userId, 'RESTORE', extractInlineData(rawText));
     return;
   }
 

@@ -6,6 +6,7 @@ const { processVoucherUpload } = require('../processors/upload');
 const { processActivateByCode } = require('../processors/activate');
 const { processExtend } = require('../processors/extend');
 const { processDelete } = require('../processors/delete');
+const { processRestore } = require('../processors/restore');
 
 async function askBranch(chatId, userId, pendingMode, pendingData) {
   setState(userId, 'BRANCH_SELECT', { pendingMode, pendingData: pendingData || null });
@@ -69,6 +70,13 @@ async function handleBranchReply(chatId, userId, text, state) {
       setState(userId, 'DELETE', { branchKey, credentials });
       await handleDeletePrompt(chatId, branchDisplay);
     }
+  } else if (pendingMode === 'RESTORE') {
+    if (pendingData && pendingData.includes('|')) {
+      await processRestore(chatId, userId, pendingData, credentials);
+    } else {
+      setState(userId, 'RESTORE', { branchKey, credentials });
+      await handleRestorePrompt(chatId, branchDisplay);
+    }
   }
 }
 
@@ -88,4 +96,12 @@ async function handleDeletePrompt(chatId, branchDisplay) {
   );
 }
 
-module.exports = { askBranch, handleBranchReply, handleExtendPrompt, handleDeletePrompt };
+async function handleRestorePrompt(chatId, branchDisplay) {
+  const label = branchDisplay ? ` - ${esc(branchDisplay)}` : '';
+  await reply(chatId,
+    `🔄 *Restore Voucher*${label}\n\nKirim kode voucher. Tanggal opsional (default: hari ini).\n\n📋 Format:\nKODE1, KODE2\nKODE1, KODE2 | DD-MM-YYYY\n\n📝 Contoh:\nVOUCHER01, VOUCHER02\nVOUCHER01, VOUCHER02 | 31-12-2025`,
+    mainKeyboard()
+  );
+}
+
+module.exports = { askBranch, handleBranchReply, handleExtendPrompt, handleDeletePrompt, handleRestorePrompt };

@@ -82,6 +82,7 @@ pm2 startup
 | `/check` | Check voucher info by code |
 | `/extend` | Extend voucher expiry date |
 | `/delete` | Delete vouchers |
+| `/restore` | Restore vouchers |
 | `/status` | Check current bot status |
 | `/help` | Show usage guide |
 
@@ -211,6 +212,27 @@ Two ways:
 Date is optional — defaults to today if omitted.
 
 If the Delete button is not available, bot replies with the current voucher status as the reason.
+
+---
+
+### Restore voucher
+
+Two ways:
+
+```
+# Inline (single message)
+/restore KODE1, KODE2
+/restore KODE1, KODE2 | DD-MM-YYYY
+
+# Two-step
+/restore  →  select branch  →  send codes
+```
+
+Date is optional — defaults to today if omitted.
+
+Bot clicks the **Restore** button on ESB ERP, fills the popup dialog (Purpose + Journal Date), then submits.
+
+If the Restore button is not available, bot replies with the current voucher status as the reason.
 
 ---
 

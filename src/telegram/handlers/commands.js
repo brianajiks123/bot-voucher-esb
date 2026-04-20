@@ -13,6 +13,7 @@ async function handleStart(chatId) {
     '🔍 /check - Cek info voucher\n' +
     '📅 /extend - Perpanjang expired voucher\n' +
     '🗑️ /delete - Hapus voucher\n' +
+    '🔄 /restore - Restore voucher\n' +
     '📊 /status - Status bot\n' +
     '❓ /help - Panduan penggunaan',
     mainKeyboard()
@@ -88,6 +89,9 @@ async function handleHelp(chatId) {
     '   Format: KODE1, KODE2 atau KODE1, KODE2 | DD-MM-YYYY\n\n' +
     '🗑️ *Hapus Voucher (/delete):*\n' +
     '1. Kirim /delete → pilih branch → kirim kode\n' +
+    '   Format: KODE1, KODE2 atau KODE1, KODE2 | DD-MM-YYYY\n\n' +
+    '🔄 *Restore Voucher (/restore):*\n' +
+    '1. Kirim /restore → pilih branch → kirim kode\n' +
     '   Format: KODE1, KODE2 atau KODE1, KODE2 | DD-MM-YYYY\n\n' +
     '🏪 *Branch alias yang valid:*\n' +
     'ideo | ven | bsb | gom | plb\n' +

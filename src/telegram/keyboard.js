@@ -1,10 +1,10 @@
 function mainKeyboard() {
   return {
     keyboard: [
-      [{ text: '/create' }, { text: '/activate' }],
-      [{ text: '/check' },  { text: '/extend'   }],
-      [{ text: '/delete' }, { text: '/status'   }],
-      [{ text: '/help' }],
+      [{ text: '/create' },  { text: '/activate' }],
+      [{ text: '/check' },   { text: '/extend'   }],
+      [{ text: '/delete' },  { text: '/restore'  }],
+      [{ text: '/status' },  { text: '/help'     }],
     ],
     resize_keyboard: true,
     persistent: true,

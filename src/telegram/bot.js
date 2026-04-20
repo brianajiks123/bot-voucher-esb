@@ -11,6 +11,7 @@ const BOT_COMMANDS = [
   { command: 'check',    description: 'Cek info voucher by kode' },
   { command: 'extend',   description: 'Perpanjang expired voucher' },
   { command: 'delete',   description: 'Hapus voucher' },
+  { command: 'restore',  description: 'Restore voucher' },
   { command: 'status',   description: 'Status bot' },
   { command: 'help',     description: 'Panduan penggunaan' },
 ];

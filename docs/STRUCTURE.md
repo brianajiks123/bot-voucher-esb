@@ -26,6 +26,7 @@ bot-voucher-esb/
 │   │   │   ├── delete.js         # processDelete()
 │   │   │   ├── extend.js         # processExtend()
 │   │   │   ├── generate.js       # processGenerate()
+│   │   │   ├── restore.js        # processRestore()
 │   │   │   ├── upload.js         # processVoucherUpload()
 │   │   │   └── voucherResult.js  # Result report formatting
 │   │   ├── bot.js                # Polling loop entry point
@@ -161,6 +162,9 @@ Handles all inline keyboard button taps. Calls `answerCallbackQuery()` then rout
 
 ### `src/telegram/processors/delete.js`
 `processDelete(credentials, codes, date)` — calls `deleteVoucherCodes()`, replies with summary.
+
+### `src/telegram/processors/restore.js`
+`processRestore(credentials, codes, date)` — calls `restoreVoucherCodes()`, replies with summary. Clicks the Restore button on ESB ERP and fills the popup dialog (Purpose + Journal Date).
 
 ### `src/telegram/processors/voucherResult.js`
 Formats result report messages for upload and activate operations.

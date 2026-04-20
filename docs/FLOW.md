@@ -12,6 +12,7 @@ Telegram bot that interacts with ESB ERP via the `esb-voucher-upload-activation`
 | `/check`    | Check voucher info by code                                         |
 | `/extend`   | Extend voucher expiry date                                         |
 | `/delete`   | Delete vouchers                                                    |
+| `/restore`  | Restore vouchers                                                   |
 | `/status`   | Check bot status                                                   |
 | `/help`     | Show usage guide                                                   |
 
@@ -258,6 +259,27 @@ Date is optional — defaults to today.
 
 ---
 
+## RESTORE Flow
+
+```
+/restore → askBranch() → user selects branch
+      │
+      ▼
+setState: { mode: 'RESTORE', credentials }
+      │
+      ▼
+User sends: KODE1, KODE2  or  KODE1, KODE2 | DD-MM-YYYY
+      │
+      ▼
+processRestore() → restoreVoucherCodes(credentials, codes, date)
+```
+
+Also supports inline: `/restore KODE1, KODE2 | DD-MM-YYYY`
+
+Date is optional — defaults to today.
+
+---
+
 ## Callback Query Flow
 
 ```
@@ -290,10 +312,10 @@ Every bot response includes mainKeyboard() — persistent reply keyboard:
   ├──────────┼───────────┤
   │ /check   │ /extend   │
   ├──────────┼───────────┤
-  │ /delete  │ /status   │
-  ├──────────┴───────────┤
-  │ /help                │
-  └──────────────────────┘
+  │ /delete  │ /restore  │
+  ├──────────┼───────────┤
+  │ /status  │ /help     │
+  └──────────┴───────────┘
 ```
 
 ---
@@ -312,6 +334,7 @@ Every bot response includes mainKeyboard() — persistent reply keyboard:
 | `CHECK`                  | After branch selected for /check      | Voucher codes text           |
 | `EXTEND`                 | After branch selected for /extend     | Codes (+ optional date) text |
 | `DELETE`                 | After branch selected for /delete     | Codes (+ optional date) text |
+| `RESTORE`                | After branch selected for /restore    | Codes (+ optional date) text |
 
 - All states expire after **5 minutes** (managed by `state.js`)
 - Only 1 process runs at a time (managed by `processingState.js`)
@@ -333,7 +356,7 @@ processors/activate.js
   ├─ Button not available      → TIDAK DAPAT DIPROSES (tombol tidak tersedia)
   └─ Unexpected error          → GAGAL with error message
 
-processors/extend.js / processors/delete.js
+processors/extend.js / processors/delete.js / processors/restore.js
   ├─ Voucher not found         → TIDAK DITEMUKAN
   ├─ Button not available      → TIDAK DAPAT DIPROSES (status: X)
   └─ Unexpected error          → GAGAL with error message
