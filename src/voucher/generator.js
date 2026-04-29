@@ -74,7 +74,7 @@ function buildVoucherRows(data, monthCode) {
 
 function formatActivationDate(day, monthName, year) {
   const monthIdx = getMonthNumber(monthName) + 1; // 1-based
-  return `${String(day).padStart(2, '0')}-${String(monthIdx).padStart(2, '0')}-${year}`;
+  return `${String(day).padStart(2, '0')}/${String(monthIdx).padStart(2, '0')}/${year}`;
 }
 
 // ─── Single Mode ──────────────────────────────────────────────────────────────
