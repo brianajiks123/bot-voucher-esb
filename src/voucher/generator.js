@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { parseGenerateInput, MONTH_MAP, MONTH_NAMES } = require('./parser');
-const { writeVoucherWorkbook } = require('./excel');
+const { writeVoucherWorkbook, writeActivatorWorkbook } = require('./excel');
 const { compressToZip } = require('./zip');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -70,10 +70,17 @@ function buildVoucherRows(data, monthCode) {
   return rows;
 }
 
+// ─── Activation Date Formatter ────────────────────────────────────────────────
+
+function formatActivationDate(day, monthName, year) {
+  const monthIdx = getMonthNumber(monthName) + 1; // 1-based
+  return `${String(day).padStart(2, '0')}-${String(monthIdx).padStart(2, '0')}-${year}`;
+}
+
 // ─── Single Mode ──────────────────────────────────────────────────────────────
 
 async function processSingle(data, baseDir) {
-  const { branchName, startDay, startMonth, endDay, endMonth, year } = data;
+  const { branchName, startDay, startMonth, endDay, endMonth, year, notes, vouchers } = data;
   const monthCode    = startDay + startMonth.charAt(0).toUpperCase();
   const branchFolder = branchName.replace(/\s+/g, '-');
 
@@ -84,13 +91,28 @@ async function processSingle(data, baseDir) {
   const rows = buildVoucherRows(data, monthCode);
   await writeVoucherWorkbook(rows, voucherFilePath);
 
+  const activationDir = path.join(baseDir, branchFolder, 'Activation');
+  fs.mkdirSync(activationDir, { recursive: true });
+  const activationFilePath = path.join(activationDir, `${startDay}-${startMonth}-${endDay}-${endMonth}-${year}.xlsx`);
+
+  const startDateStr = formatActivationDate(startDay, startMonth, year);
+  const endDateStr   = formatActivationDate(endDay, endMonth, year);
+  const additionalInfo = notes || `Voucher ${branchName}`;
+
+  const voucherEntries = rows.map((r) => ({
+    voucherCode:   r.voucherCode,
+    branchName:    r.branchName,
+    voucherAmount: r.voucherAmount,
+  }));
+  await writeActivatorWorkbook(voucherEntries, startDateStr, endDateStr, additionalInfo, activationFilePath);
+
   return { branchName, mode: 'single', voucherCount: rows.length };
 }
 
 // ─── Multiple Mode ────────────────────────────────────────────────────────────
 
 async function processMultiple(data, baseDir) {
-  const { branchName, startDay, startMonth, endDay, endMonth, year } = data;
+  const { branchName, startDay, startMonth, endDay, endMonth, year, notes } = data;
   const branchFolder = branchName.replace(/\s+/g, '-');
   const dates        = generateDateRange(startDay, startMonth, endDay, endMonth, year);
   let totalVouchers  = 0;
@@ -103,6 +125,20 @@ async function processMultiple(data, baseDir) {
     const rows = buildVoucherRows(data, dateInfo.monthCode);
     await writeVoucherWorkbook(rows, voucherFilePath);
     totalVouchers += rows.length;
+
+    const activationDir = path.join(baseDir, branchFolder, 'Activation', dateInfo.folderName);
+    fs.mkdirSync(activationDir, { recursive: true });
+    const activationFilePath = path.join(activationDir, `${dateInfo.day}-${dateInfo.month}-${dateInfo.year}.xlsx`);
+
+    const dateStr = formatActivationDate(dateInfo.day, dateInfo.month, dateInfo.year);
+    const additionalInfo = notes || `Voucher ${branchName}`;
+
+    const voucherEntries = rows.map((r) => ({
+      voucherCode:   r.voucherCode,
+      branchName:    r.branchName,
+      voucherAmount: r.voucherAmount,
+    }));
+    await writeActivatorWorkbook(voucherEntries, dateStr, dateStr, additionalInfo, activationFilePath);
   }
 
   return { branchName, mode: 'multiple', voucherCount: totalVouchers, days: dates.length };

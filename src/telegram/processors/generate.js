@@ -93,7 +93,11 @@ async function processGenerate(chatId, userId, text, credentials, allowPrefix = 
     zipPath = result.zipPath;
 
     await reply(chatId,
-      `✅ *Generate selesai!*\n\n${result.summary.map((s) => esc(s)).join('\n')}\n\n📦 Mengirim file hasil generate...`
+      `✅ *Generate selesai!*\n\n${result.summary.map((s) => esc(s)).join('\n')}\n\n` +
+      `📁 File ZIP berisi:\n` +
+      `  • Folder *Voucher/* — untuk upload via /create\n` +
+      `  • Folder *Activation/* — untuk aktivasi via /activate\n\n` +
+      `📦 Mengirim file hasil generate...`
     );
     await sendDocument(zipPath, chatId, 'Hasil generate voucher');
 
@@ -101,7 +105,11 @@ async function processGenerate(chatId, userId, text, credentials, allowPrefix = 
     scheduleConfirmTimeout(chatId, userId, baseDir, zipPath);
 
     await reply(chatId,
-      '❓ *Upload ke ESB ERP?*\n\nApakah file ini perlu diupload ke ESB ERP sekarang?\n\nBalas *ya* untuk upload atau *tidak* untuk lewati.\n⏱️ Konfirmasi kedaluwarsa dalam 2 menit.',
+      '❓ *Upload Voucher ke ESB ERP?*\n\n' +
+      'File *Voucher/* akan diupload ke ESB ERP sekarang.\n' +
+      'File *Activation/* disimpan di ZIP untuk digunakan nanti via /activate.\n\n' +
+      'Balas *ya* untuk upload atau *tidak* untuk lewati.\n' +
+      '⏱️ Konfirmasi kedaluwarsa dalam 2 menit.',
       mainKeyboard()
     );
   } catch (err) {
